@@ -7,6 +7,7 @@ import { Progress } from "../components/ui/progress";
 import { ProcessSection } from "../components/evaluation/ProcessSection";
 import { CheckCircle2 } from "lucide-react";
 
+// ✅ INTERFACES ACTUALIZADAS
 interface EvaluacionDetalleRaw {
   idEvaluacion: number;
   idEmpleado: string;
@@ -15,11 +16,14 @@ interface EvaluacionDetalleRaw {
   evaluador: string;
   observaciones: string;
   estado: string;
+  porcentaje_original: number;
+  porcentaje_actual: number;
   respuestas: {
     idRespuesta: number;
     idEvaluacion: number;
     idPregunta: number;
     respuesta: boolean;
+    no_aplica: boolean;  // ✅ NUEVO
     comentarios: string | null;
     titulo: string;
   }[];
@@ -39,6 +43,7 @@ interface EvaluacionDetalle {
   respuestas: {
     idPregunta: number;
     respuesta: boolean;
+    noAplica: boolean;  // ✅ NUEVO
     titulo: string;
   }[];
 }
@@ -64,6 +69,7 @@ export default function EvaluationDetalle() {
         const raw: EvaluacionDetalleRaw = await res.json();
         console.log("RAW evaluación backend:", raw);
 
+        // ✅ NORMALIZACIÓN CON noAplica
         const normalized: EvaluacionDetalle = {
           idEvaluacion: raw.idEvaluacion,
           categoriaNombre: raw.categoria,
@@ -75,6 +81,7 @@ export default function EvaluationDetalle() {
           respuestas: raw.respuestas.map((r) => ({
             idPregunta: r.idPregunta,
             respuesta: r.respuesta,
+            noAplica: r.no_aplica || false,  // ✅ NUEVO
             titulo: r.titulo,
           })),
         };
@@ -111,14 +118,17 @@ export default function EvaluationDetalle() {
     );
   }
 
-  const completedCount = evaluation.respuestas.filter((r) => r.respuesta).length;
-  const totalCount = evaluation.respuestas.length;
+  // 🔥 CÁLCULO ACTUALIZADO con "No Aplica"
+  const applicableQuestions = evaluation.respuestas.filter((r) => !r.noAplica);
+  const completedCount = applicableQuestions.filter((r) => r.respuesta).length;
+  const totalCount = applicableQuestions.length;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const noAplicaCount = evaluation.respuestas.filter((r) => r.noAplica).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Header - ACTUALIZADO */}
         <Card className="mb-8 shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardContent className="p-8">
             <div className="flex items-start gap-6">
@@ -137,15 +147,20 @@ export default function EvaluationDetalle() {
                     📅 {new Date(evaluation.fechaEvaluacion).toLocaleDateString()}
                   </span>
                   <span className="text-green-600 bg-green-50 px-4 py-2 rounded-full font-medium">
-                    📊 {completedCount}/{totalCount} completadas
+                    📊 {completedCount}/{totalCount} ({progress.toFixed(1)}%)
                   </span>
+                  {noAplicaCount > 0 && (
+                    <span className="text-gray-600 bg-gray-100 px-4 py-2 rounded-full font-medium">
+                      ⏭️ {noAplicaCount} No Aplica
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Guía Técnica */}
+        {/* Guía Técnica SIN CAMBIOS */}
         <Card className="shadow-sm hover:shadow-md transition-shadow mb-6">
           <CardContent className="p-6">
             <Label className="text-xl font-bold text-gray-900 mb-4 block flex items-center gap-2">
@@ -157,7 +172,7 @@ export default function EvaluationDetalle() {
           </CardContent>
         </Card>
 
-        {/* Proceso solo si es packaging */}
+        {/* Proceso solo si es packaging SIN CAMBIOS */}
         {evaluation.procesoNombre && (
           <Card className="shadow-sm hover:shadow-md transition-shadow mb-6">
             <CardContent className="p-6">
@@ -169,7 +184,7 @@ export default function EvaluationDetalle() {
           </Card>
         )}
 
-        {/* Progreso */}
+        {/* Progreso - ACTUALIZADO */}
         <Card className="mb-8 shadow-lg border-0">
           <CardContent className="p-8">
             <div className="flex items-center justify-between mb-6">
@@ -185,13 +200,18 @@ export default function EvaluationDetalle() {
               value={progress} 
               className="h-4 [&>div]:!bg-gradient-to-r [&>div]:from-blue-500 [&>div]:to-blue-600" 
             />
-            <div className="mt-4 text-sm text-gray-600">
-              {completedCount} de {totalCount} preguntas respondidas ({progress.toFixed(1)}%)
+            <div className="mt-4 text-sm text-gray-600 flex flex-wrap gap-4">
+              <span>{completedCount} de {totalCount} preguntas aplicables ({progress.toFixed(1)}%)</span>
+              {noAplicaCount > 0 && (
+                <span className="text-gray-500 bg-gray-100 px-3 py-1 rounded-full text-xs">
+                  {noAplicaCount} preguntas excluidas (No Aplica)
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Preguntas */}
+        {/* Preguntas - ACTUALIZADO CON noAplica */}
         <Card className="shadow-lg border-0 mb-8">
           <CardContent className="p-8">
             <div className="flex items-center justify-between mb-8">
@@ -199,7 +219,7 @@ export default function EvaluationDetalle() {
                 {evaluation.procesoNombre || evaluation.categoriaNombre}
               </Label>
               <span className="text-sm text-gray-500">
-                {evaluation.respuestas.length} preguntas
+                {evaluation.respuestas.length} preguntas totales
               </span>
             </div>
             
@@ -207,17 +227,19 @@ export default function EvaluationDetalle() {
               title={evaluation.procesoNombre || evaluation.categoriaNombre}
               questions={evaluation.respuestas.map((r) => ({
                 id_pregunta: r.idPregunta,
-                titulo: r.titulo, // ahora sí muestra el título real
-                peso: 0,
+                titulo: r.titulo,
+                peso: 1.0,  // Default para vista
                 respuesta: r.respuesta,
+                noAplica: r.noAplica,  // ✅ NUEVO
               }))}
-              onToggleQuestion={() => {}}
-              readOnly
+              onToggleQuestion={() => {}}  // Empty para readOnly
+              onNoAplicaToggle={() => {}}  // ✅ NUEVO - Empty para readOnly
+              readOnly  // ✅ readOnly prop
             />
           </CardContent>
         </Card>
 
-        {/* Observaciones */}
+        {/* Observaciones SIN CAMBIOS */}
         <Card className="shadow-sm">
           <CardContent className="p-8">
             <Label className="text-2xl font-bold text-gray-900 mb-6 block flex items-center gap-3">

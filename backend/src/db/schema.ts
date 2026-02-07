@@ -1,5 +1,5 @@
 import { pgTable, serial, varchar, text, timestamp, boolean, decimal, integer, unique } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 export const empleados = pgTable('empleados', {
   id_empleado: varchar('id_empleado', { length: 10 }).primaryKey(),
@@ -36,14 +36,15 @@ export const preguntas = pgTable('preguntas', {
   orden: integer('orden').default(0),
 });
 
-export const evaluaciones = pgTable('evaluaciones', {
-  idEvaluacion: serial('id_evaluacion').primaryKey(),
-  idEmpleado: varchar('id_empleado', { length: 10 }).references(() => empleados.id_empleado),
-  idCategoria: integer('id_categoria').references(() => categorias.id_categoria),
-  fechaEvaluacion: timestamp('fecha_evaluacion').defaultNow(),
-  evaluador: varchar('evaluador', { length: 150 }),
-  observaciones: text('observaciones'),
-  estado: varchar('estado', { length: 20 }).default('pendiente'),
+export const evaluaciones = pgTable("evaluaciones", {
+  idEvaluacion: serial("id_evaluacion").primaryKey(),
+  idEmpleado: varchar("id_empleado", { length: 10 }),
+  idCategoria: integer("id_categoria").notNull(),
+  fechaEvaluacion: timestamp("fecha_evaluacion").defaultNow(),
+  evaluador: varchar("evaluador", { length: 150 }),
+  observaciones: text("observaciones"),
+  estado: varchar("estado", { length: 20 }).default("pendiente"),
+  porcentaje_original: decimal("porcentaje_original", { precision: 5, scale: 2 }).default(sql`0.00`), // 🔹 NUEVO
 });
 
 export const respuestas = pgTable('respuestas', {
@@ -51,6 +52,7 @@ export const respuestas = pgTable('respuestas', {
   idEvaluacion: integer('id_evaluacion').references(() => evaluaciones.idEvaluacion),
   idPregunta: integer('id_pregunta').references(() => preguntas.id_pregunta),
   respuesta: boolean('respuesta').notNull(),
+  no_aplica: boolean('no_aplica').default(false),  // ✅ NUEVO
   comentarios: text('comentarios'),
 }, (table) => [
   unique().on(table.idEvaluacion, table.idPregunta),
@@ -79,3 +81,18 @@ export const respuestasRelations = relations(respuestas, ({ one }) => ({
     references: [preguntas.id_pregunta],
   }),
 }));
+
+export const historial_evaluaciones = pgTable("historial_evaluaciones", {
+  idHistorial: serial("id_historial").primaryKey(),
+  idEvaluacion: integer("id_evaluacion").notNull().references(() => evaluaciones.idEvaluacion, { onDelete: "cascade" }),
+  porcentaje: decimal("porcentaje", { precision: 5, scale: 2 }).notNull(),
+  fechaModificacion: timestamp("fecha_modificacion").defaultNow(),
+  modificadoPor: varchar("modificado_por", { length: 150 }),
+  observacionesModificacion: text("observaciones_modificacion"),
+  esOriginal: boolean("es_original").default(false),
+});
+
+
+
+// MODIFICAR evaluaciones
+

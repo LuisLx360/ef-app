@@ -2,6 +2,7 @@ import {
   IsArray, 
   IsInt, 
   IsBoolean, 
+  IsOptional, 
   Min, 
   ValidateNested 
 } from 'class-validator';
@@ -14,6 +15,10 @@ export class UpdateRespuestaDto {
 
   @IsBoolean()
   respuesta: boolean;
+
+  @IsOptional()  // ✅ NUEVO - opcional para mantener valor actual
+  @IsBoolean()
+  noAplica?: boolean;
 }
 
 export class UpdateRespuestasDto {

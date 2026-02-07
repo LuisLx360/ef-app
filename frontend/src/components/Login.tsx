@@ -145,6 +145,7 @@ export default function Login() {
       <div className="hidden lg:block lg:w-3/5 relative">
         <img
           src="assets/images/pepsi.jpg"
+          //No colocarle 1 al nombre pepsi si no caera toda la base de datos
           alt="Trabajo en equipo industrial"
           className="absolute inset-0 w-full h-full object-cover"
         />

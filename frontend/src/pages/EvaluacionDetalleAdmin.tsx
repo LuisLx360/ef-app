@@ -1,4 +1,4 @@
-// src/pages/EvaluacionDetalleAdmin.tsx
+// src/pages/EvaluacionDetalleAdmin.tsx - ADAPTADO "No Aplica"
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "../components/ui/card";
@@ -6,10 +6,13 @@ import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
 import { Progress } from "../components/ui/progress";
 import { Button } from "../components/ui/button";
-import { Loader2, Download, Trash2, CheckCheck } from "lucide-react";
+import { Loader2, Download, Trash2, CheckCheck, CheckCircle2 } from "lucide-react";
 import { ProcessSection } from "../components/evaluation/ProcessSection";
-import { CheckCircle2 } from "lucide-react";
 import { Dialog, DialogFooter, useDialog } from "../components/ui/dialog";
+
+/* =======================
+   TIPOS - ACTUALIZADOS
+======================== */
 
 interface EvaluacionDetalleRaw {
   idEvaluacion: number;
@@ -19,14 +22,21 @@ interface EvaluacionDetalleRaw {
   evaluador: string;
   observaciones: string;
   estado: string;
+
+  // 🔹 vienen del backend
+  porcentaje_original: number;
+  porcentaje_actual: number;
+
   respuestas: {
     idRespuesta: number;
     idEvaluacion: number;
     idPregunta: number;
     respuesta: boolean;
+    no_aplica: boolean;  // ✅ NUEVO
     comentarios: string | null;
     titulo: string;
   }[];
+
   proceso?: string | null;
   categoria: string;
   area: "electrico" | "packaging";
@@ -36,6 +46,7 @@ interface EvaluacionDetalleRaw {
 interface RespuestaEditable {
   idPregunta: number;
   respuesta: boolean;
+  noAplica: boolean;  // ✅ NUEVO
   titulo: string;
   idRespuesta?: number;
 }
@@ -45,17 +56,26 @@ interface EvaluacionDetalleAdmin {
   categoriaNombre: string;
   procesoNombre?: string;
   observaciones: string;
-  empleadoNombre: string;    // quien hizo el examen
-  evaluadorNombre: string;   // quien lo evaluó
+  empleadoNombre: string;
+  evaluadorNombre: string;
   fechaEvaluacion: string;
   estado: string;
+
+  // 🆕 PORCENTAJES NORMALIZADOS
+  porcentajeOriginal: number;
+  porcentajeFinal: number;
+
   respuestas: RespuestaEditable[];
 }
+
+/* =======================
+   COMPONENTE
+======================== */
 
 export default function EvaluacionDetalleAdmin() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
+
   const [evaluation, setEvaluation] = useState<EvaluacionDetalleAdmin | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,53 +86,63 @@ export default function EvaluacionDetalleAdmin() {
   const deleteDialog = useDialog();
   const token = localStorage.getItem("token");
 
-  // 🔹 FETCH evaluación
-  useEffect(() => {
+  /* =======================
+     FETCH EVALUACIÓN - ACTUALIZADO
+  ========================== */
+
+  const fetchEvaluation = useCallback(async () => {
     if (!id || !token) return;
 
-    const fetchEvaluation = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    try {
+      setLoading(true);
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw: EvaluacionDetalleRaw = await res.json();
+      const res = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        // 🔍 Normalizar
-        const normalized: EvaluacionDetalleAdmin = {
-  idEvaluacion: raw.idEvaluacion,
-  categoriaNombre: raw.categoria,
-  procesoNombre: raw.area === "packaging" ? raw.proceso || undefined : undefined,
-  observaciones: raw.observaciones || "",
-  empleadoNombre: raw.empleadoNombre || "Sin nombre",   // quien hizo el examen
-  evaluadorNombre: raw.evaluador || "Sin evaluador",   // quien lo evaluó
-  fechaEvaluacion: raw.fechaEvaluacion,
-  estado: raw.estado || "pendiente",
-  respuestas: raw.respuestas.map((r) => ({
-    idPregunta: r.idPregunta,
-    idRespuesta: r.idRespuesta,
-    respuesta: r.respuesta,
-    titulo: r.titulo,
-  })),
-};
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw: EvaluacionDetalleRaw = await res.json();
+      /* console.log("📦 RAW evaluación:", raw); */
 
-        setEvaluation(normalized);
-        setRespuestasEdit(normalized.respuestas);
-        setEstadoEdit(normalized.estado);
-      } catch (err) {
-        console.error("❌ Error fetch evaluación:", err);
-        setEvaluation(null);
-      } finally {
-        setLoading(false);
-      }
-    };
+      // ✅ NORMALIZACIÓN CON noAplica
+      const normalized: EvaluacionDetalleAdmin = {
+        idEvaluacion: raw.idEvaluacion,
+        categoriaNombre: raw.categoria,
+        procesoNombre: raw.area === "packaging" ? raw.proceso || undefined : undefined,
+        observaciones: raw.observaciones || "",
+        empleadoNombre: raw.empleadoNombre || "Sin nombre",
+        evaluadorNombre: raw.evaluador || "Sin evaluador",
+        fechaEvaluacion: raw.fechaEvaluacion,
+        estado: raw.estado || "pendiente",
 
-    fetchEvaluation();
+        porcentajeOriginal: raw.porcentaje_original,
+        porcentajeFinal: raw.porcentaje_actual,
+
+        respuestas: raw.respuestas.map((r) => ({
+          idPregunta: r.idPregunta,
+          idRespuesta: r.idRespuesta,
+          respuesta: r.respuesta,
+          noAplica: r.no_aplica || false,  // ✅ NUEVO
+          titulo: r.titulo,
+        })),
+      };
+
+      setEvaluation(normalized);
+      setRespuestasEdit(normalized.respuestas);
+      setEstadoEdit(normalized.estado);
+    } catch (err) {
+      console.error("❌ Error fetch evaluación:", err);
+      setEvaluation(null);
+    } finally {
+      setLoading(false);
+    }
   }, [id, token]);
 
-  // 🔹 Toggle pregunta
+  useEffect(() => {
+    fetchEvaluation();
+  }, [fetchEvaluation]);
+
+  // 🔹 Toggle pregunta - SIN CAMBIOS (solo afecta respuesta)
   const handleToggleQuestion = useCallback((questionId: number) => {
     setRespuestasEdit((prev) =>
       prev.map((r) =>
@@ -121,26 +151,44 @@ export default function EvaluacionDetalleAdmin() {
     );
   }, []);
 
-  // 🔹 Guardar cambios
+  // ✅ NUEVO: Toggle No Aplica para admin
+  const handleNoAplicaToggle = useCallback((questionId: number) => {
+    setRespuestasEdit((prev) =>
+      prev.map((r) =>
+        r.idPregunta === questionId 
+          ? { ...r, noAplica: !r.noAplica, respuesta: false }  // Reset respuesta
+          : r
+      )
+    );
+  }, []);
+
+  // 🔹 Guardar cambios - ACTUALIZADO
   const handleSaveChanges = async () => {
     if (!evaluation || !id) return;
 
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    // Detectar cambios en respuestas Y noAplica
+    const cambiosRespuestas = respuestasEdit.filter((r) =>
+      evaluation.respuestas.some(
+        (orig) =>
+          orig.idPregunta === r.idPregunta &&
+          (orig.respuesta !== r.respuesta || orig.noAplica !== r.noAplica)
+      )
+    );
+
+    // Detectar cambio de estado
+    const cambioEstado = estadoEdit !== evaluation.estado;
+
+    if (cambiosRespuestas.length === 0 && !cambioEstado) return;
+
     try {
       setSaving(true);
-      const token = localStorage.getItem("token");
 
-      const cambiosRespuestas = respuestasEdit.filter((r) =>
-        evaluation.respuestas.some(
-          (orig) => orig.idPregunta === r.idPregunta && orig.respuesta !== r.respuesta
-        )
-      );
-
-      const cambioEstado = estadoEdit !== evaluation.estado;
-
-      if (cambiosRespuestas.length === 0 && !cambioEstado) return;
-
+      // 1️⃣ Actualizar estado si cambió
       if (cambioEstado) {
-        const res = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
+        const resEstado = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
           method: "PATCH",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -148,33 +196,39 @@ export default function EvaluacionDetalleAdmin() {
           },
           body: JSON.stringify({ estado: estadoEdit }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        if (!resEstado.ok) {
+          throw new Error(`HTTP ${resEstado.status} al actualizar estado`);
+        }
       }
 
+      // 2️⃣ Actualizar respuestas CON noAplica
       if (cambiosRespuestas.length > 0) {
-        const res = await fetch(`http://localhost:3000/evaluaciones/${id}/respuestas`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ respuestas: cambiosRespuestas }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const resResp = await fetch(
+          `http://localhost:3000/evaluaciones/${id}/respuestas`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              respuestas: cambiosRespuestas.map(r => ({
+                idPregunta: r.idPregunta,
+                respuesta: r.respuesta,
+                noAplica: r.noAplica  // ✅ NUEVO
+              }))
+            }),
+          }
+        );
+
+        if (!resResp.ok) {
+          throw new Error(`HTTP ${resResp.status} al actualizar respuestas`);
+        }
       }
 
-      setEvaluation((prev) =>
-        prev
-          ? {
-              ...prev,
-              estado: estadoEdit,
-              respuestas: prev.respuestas.map((orig) => {
-                const edited = respuestasEdit.find((e) => e.idPregunta === orig.idPregunta);
-                return edited ? { ...orig, respuesta: edited.respuesta } : orig;
-              }),
-            }
-          : null
-      );
+      // 3️⃣ Refrescar datos
+      await fetchEvaluation();
     } catch (err) {
       console.error("❌ Error guardando cambios:", err);
     } finally {
@@ -182,7 +236,7 @@ export default function EvaluacionDetalleAdmin() {
     }
   };
 
-  // 🔹 Eliminar evaluación
+  // 🔹 Resto de funciones SIN CAMBIOS
   const handleDeleteEvaluation = async () => {
     if (!evaluation || !id) return;
 
@@ -204,7 +258,6 @@ export default function EvaluacionDetalleAdmin() {
     }
   };
 
-  // 🔹 Descargar Excel
   const handleDownload = async () => {
     if (!id || !token || !evaluation) {
       alert('Faltan datos para descargar');
@@ -262,21 +315,27 @@ export default function EvaluacionDetalleAdmin() {
     );
   }
 
-  const completedCount = respuestasEdit.filter((r) => r.respuesta).length;
-  const totalCount = respuestasEdit.length;
+  // 🔥 CÁLCULO ACTUALIZADO con "No Aplica"
+  const applicableQuestions = respuestasEdit.filter((r) => !r.noAplica);
+  const completedCount = applicableQuestions.filter((r) => r.respuesta).length;
+  const totalCount = applicableQuestions.length;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const noAplicaCount = respuestasEdit.filter((r) => r.noAplica).length;
+
   const hasChanges =
     estadoEdit !== evaluation.estado ||
     respuestasEdit.some((edit) =>
       evaluation.respuestas.some(
-        (orig) => orig.idPregunta === edit.idPregunta && orig.respuesta !== edit.respuesta
+        (orig) => 
+          orig.idPregunta === edit.idPregunta && 
+          (orig.respuesta !== edit.respuesta || orig.noAplica !== edit.noAplica)
       )
     );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* HEADER CON CONTROLES ADMIN */}
+        {/* HEADER - ACTUALIZADO */}
         <Card className="mb-8 shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardContent className="p-8">
             <div className="flex flex-col lg:flex-row lg:items-start gap-6">
@@ -305,6 +364,19 @@ export default function EvaluacionDetalleAdmin() {
                           : 'text-yellow-600 bg-yellow-50'
                       }`}>
                         📊 {completedCount}/{totalCount} ({progress.toFixed(0)}%)
+                      </span>
+                      {noAplicaCount > 0 && (
+                        <span className="text-gray-600 bg-gray-100 px-4 py-2 rounded-full font-medium">
+                          ⏭️ {noAplicaCount} No Aplica
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-4 mt-4">
+                      <span className="px-4 py-2 rounded-full bg-blue-50 text-blue-700 font-semibold">
+                        👤 Autoevaluación: {evaluation.porcentajeOriginal.toFixed(1)}%
+                      </span>
+                      <span className="px-4 py-2 rounded-full bg-green-50 text-green-700 font-semibold">
+                        🧑‍🏫 Resultado final: {evaluation.porcentajeFinal.toFixed(1)}%
                       </span>
                     </div>
                   </div>
@@ -370,7 +442,7 @@ export default function EvaluacionDetalleAdmin() {
           </CardContent>
         </Card>
 
-        {/* GUIA TÉCNICA */}
+        {/* GUIA TÉCNICA SIN CAMBIOS */}
         <Card className="shadow-sm hover:shadow-md transition-shadow mb-6">
           <CardContent className="p-6">
             <Label className="text-xl font-bold text-gray-900 mb-4 block flex items-center gap-2">
@@ -382,7 +454,7 @@ export default function EvaluacionDetalleAdmin() {
           </CardContent>
         </Card>
 
-        {/* PROCESO (solo packaging) */}
+        {/* PROCESO SIN CAMBIOS */}
         {evaluation.procesoNombre && (
           <Card className="shadow-sm hover:shadow-md transition-shadow mb-6">
             <CardContent className="p-6">
@@ -394,7 +466,7 @@ export default function EvaluacionDetalleAdmin() {
           </Card>
         )}
 
-        {/* PROGRESO */}
+        {/* PROGRESO - ACTUALIZADO */}
         <Card className="mb-8 shadow-lg border-0">
           <CardContent className="p-8">
             <div className="flex items-center justify-between mb-6">
@@ -409,13 +481,18 @@ export default function EvaluacionDetalleAdmin() {
               value={progress} 
               className="h-4 [&>div]:!bg-gradient-to-r [&>div]:from-blue-500 [&>div]:to-blue-600" 
             />
-            <div className="mt-4 text-sm text-gray-600">
-              {completedCount} de {totalCount} preguntas respondidas ({progress.toFixed(1)}%)
+            <div className="mt-4 text-sm text-gray-600 flex flex-wrap gap-4 items-center">
+              <span>{completedCount} de {totalCount} preguntas aplicables ({progress.toFixed(1)}%)</span>
+              {noAplicaCount > 0 && (
+                <span className="text-gray-500 bg-gray-100 px-3 py-1 rounded-full text-xs font-medium">
+                  {noAplicaCount} No Aplica
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* PREGUNTAS INTERACTIVAS */}
+        {/* PREGUNTAS INTERACTIVAS - ACTUALIZADO */}
         <Card className="shadow-lg border-0 mb-8">
           <CardContent className="p-8">
             <div className="flex items-center justify-between mb-8">
@@ -423,7 +500,7 @@ export default function EvaluacionDetalleAdmin() {
                 {evaluation.procesoNombre || evaluation.categoriaNombre}
               </Label>
               <span className="text-sm text-gray-500">
-                {evaluation.respuestas.length} preguntas
+                {evaluation.respuestas.length} preguntas totales
               </span>
             </div>
             
@@ -432,16 +509,18 @@ export default function EvaluacionDetalleAdmin() {
               questions={respuestasEdit.map((r) => ({
                 id_pregunta: r.idPregunta,
                 titulo: r.titulo,
-                peso: 0,
+                peso: 1.0,
                 respuesta: r.respuesta,
+                noAplica: r.noAplica,  // ✅ NUEVO
               }))}
               onToggleQuestion={handleToggleQuestion}
+              onNoAplicaToggle={handleNoAplicaToggle}  // ✅ NUEVO
               readOnly={false}
             />
           </CardContent>
         </Card>
 
-        {/* OBSERVACIONES */}
+        {/* OBSERVACIONES SIN CAMBIOS */}
         <Card className="shadow-sm">
           <CardContent className="p-8">
             <Label className="text-2xl font-bold text-gray-900 mb-6 block flex items-center gap-3">
@@ -456,8 +535,7 @@ export default function EvaluacionDetalleAdmin() {
           </CardContent>
         </Card>
 
-
-        {/* DIALOG ELIMINAR */}
+        {/* DIALOG ELIMINAR SIN CAMBIOS */}
         <Dialog 
           isOpen={deleteDialog.isOpen} 
           onClose={deleteDialog.close} 
@@ -498,3 +576,4 @@ export default function EvaluacionDetalleAdmin() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-// src/components/evaluation/Evaluation.tsx - CÓDIGO COMPLETO CORREGIDO
+// src/components/evaluation/Evaluation.tsx - CÓDIGO COMPLETO CON "No Aplica"
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
@@ -23,7 +23,7 @@ interface Proceso {
 }
 
 interface User {
-  id_empleado: string;  // ✅ FIJADO
+  id_empleado: string;
   nombre: string;
   nivel_acceso: string;
   area: string;
@@ -51,63 +51,57 @@ export default function Evaluation() {
 
   const token = localStorage.getItem("token");
 
-  // 🔥 MOVER ANTES: loadGuides useCallback
-  // Evaluation.tsx - loadGuides FINAL
-const loadGuides = useCallback(async () => {
-  const token = localStorage.getItem("token");
-  if (!token) return setLoading(false);
+  // loadGuides SIN CAMBIOS
+  const loadGuides = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return setLoading(false);
 
-  setLoading(true);
-  
-  try {
-    console.log('🔍 Evaluación → /categorias/evaluacion');
+    setLoading(true);
     
-    // ✅ NUEVO ENDPOINT - Todos acceden
-    const categoriasResp = await fetch("http://localhost:3000/categorias/evaluacion", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    try {
+      console.log('🔍 Evaluación → /categorias/evaluacion');
+      
+      const categoriasResp = await fetch("http://localhost:3000/categorias/evaluacion", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (!categoriasResp.ok) throw new Error('No categorías');
+      if (!categoriasResp.ok) throw new Error('No categorías');
 
-    const categorias: Categoria[] = await categoriasResp.json();
-    
-    // Cargar procesos con nuevo endpoint
-    const guidesWithProcesses = await Promise.all(
-      categorias.map(async (cat) => {
-        const procesosResp = await fetch(
-          `http://localhost:3000/categorias/${cat.id_categoria}/procesos/evaluacion`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const procesos: Proceso[] = procesosResp.ok ? await procesosResp.json() : [];
-        
-        return { 
-          ...cat, 
-          procesos,
-          area: cat.nombre.toLowerCase().includes('electrico') ? 'electrico' : 'packaging'
-        };
-      })
-    );
+      const categorias: Categoria[] = await categoriasResp.json();
+      
+      const guidesWithProcesses = await Promise.all(
+        categorias.map(async (cat) => {
+          const procesosResp = await fetch(
+           `http://localhost:3000/categorias/${cat.id_categoria}/procesos/evaluacion`,
+           { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const procesos: Proceso[] = procesosResp.ok ? await procesosResp.json() : [];
+          
+          return { 
+            ...cat, 
+            procesos,
+            area: cat.nombre.toLowerCase().includes('electrico') ? 'electrico' : 'packaging'
+          };
+        })
+      );
 
-    console.log(`✅ ${guidesWithProcesses.length} guías evaluacion`);
-    setGuides(guidesWithProcesses);
-    setSelectedGuideId(0);
-    setSelectedProcessId(0);
+      console.log(`✅ ${guidesWithProcesses.length} guías evaluacion`);
+      setGuides(guidesWithProcesses);
+      setSelectedGuideId(0);
+      setSelectedProcessId(0);
 
-  } catch (error) {
-    console.error('❌ Error:', error);
-    setLoading(false);
-  }
-}, []);
+    } catch (error) {
+      console.error('❌ Error:', error);
+      setLoading(false);
+    }
+  }, []);
 
-
-  // ✅ Detectar si guía es eléctrica (DESPUÉS de loadGuides)
   const currentGuide = guides.find((g) => g.id_categoria === selectedGuideId);
   const isElectrica = currentGuide?.area === 'electrico';
   const currentProcess = isElectrica 
     ? null 
     : guides.find((g) => g.id_categoria === selectedGuideId)?.procesos?.find((p) => p.id_proceso === selectedProcessId);
 
-  // ✅ Options para SelectRadix
   const guidesOptions: Option[] = guides.map((guide) => ({
     value: guide.id_categoria.toString(),
     label: `${guide.nombre} ${guide.area === 'electrico' ? '⚡' : '📦'}`,
@@ -120,7 +114,7 @@ const loadGuides = useCallback(async () => {
       }))
     : [];
 
-  // ✅ useEffect FIJADO - ahora loadGuides existe
+  // useEffects SIN CAMBIOS
   useEffect(() => {
     if (token) {
       const storedUser = localStorage.getItem("user");
@@ -137,7 +131,6 @@ const loadGuides = useCallback(async () => {
     }
   }, [token, loadGuides]);
 
-  // Resto del useEffect y funciones...
   useEffect(() => {
     if (selectedGuideId > 0 && token) {
       if (isElectrica) {
@@ -152,7 +145,7 @@ const loadGuides = useCallback(async () => {
     }
   }, [selectedGuideId, selectedProcessId, token, isElectrica]);
 
-  // ... resto de funciones exactamente IGUALES ...
+  // loadQuestions CON noAplica ✅
   const loadQuestionsDirecto = async () => {
     try {
       setLoading(true);
@@ -168,6 +161,7 @@ const loadGuides = useCallback(async () => {
             titulo: q.titulo,
             peso: parseFloat(q.peso),
             respuesta: false,
+            noAplica: false,  // ✅ NUEVO
           }))
         );
       }
@@ -194,6 +188,7 @@ const loadGuides = useCallback(async () => {
             titulo: q.titulo,
             peso: parseFloat(q.peso),
             respuesta: false,
+            noAplica: false,  // ✅ NUEVO
           }))
         );
       }
@@ -214,6 +209,17 @@ const loadGuides = useCallback(async () => {
     }
   };
 
+  // ✅ NUEVO HANDLER No Aplica
+  const handleNoAplicaToggle = useCallback((questionId: number) => {
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id_pregunta === questionId 
+          ? { ...q, noAplica: !q.noAplica, respuesta: false }  // Reset respuesta
+          : q
+      )
+    );
+  }, []);
+
   const handleProcessChange = (processId: string) => {
     const id = parseInt(processId);
     if (!isNaN(id) && id > 0) {
@@ -222,74 +228,78 @@ const loadGuides = useCallback(async () => {
   };
 
   const handleToggleQuestion = useCallback((questionId: number) => {
+    console.log('🎯 Toggle ejecutado:', questionId);
     setQuestions((prev) =>
-      prev.map((q) => (q.id_pregunta === questionId ? { ...q, respuesta: !q.respuesta } : q))
+      prev.map((q) =>
+        q.id_pregunta === questionId ? { ...q, respuesta: !q.respuesta } : q
+      )
     );
   }, []);
 
-  // ✅ handleSubmit PERFECTO
+  // handleSubmit CON noAplica ✅
   const handleSubmit = useCallback(async () => {
-  if (questions.length === 0 || selectedGuideId === 0) {
-    alert('⚠️ Selecciona una guía y responde las preguntas');
-    return;
-  }
-  if (!token) {
-    alert('❌ Sesión expirada');
-    return;
-  }
-  if (!user.id_empleado) {
-    alert('❌ ID empleado no encontrado');
-    return;
-  }
+    if (questions.length === 0 || selectedGuideId === 0) {
+      alert('⚠️ Selecciona una guía y responde las preguntas');
+      return;
+    }
+    if (!token) {
+      alert('❌ Sesión expirada');
+      return;
+    }
+    if (!user.id_empleado) {
+      alert('❌ ID empleado no encontrado');
+      return;
+    }
 
-  setLoading(true);
-  try {
-    const evaluacionData = {
-      idEmpleado: user.id_empleado,
-      idCategoria: selectedGuideId,
-      evaluador: "Autoevaluación", // ✅ CAMBIO AQUÍ
-      observaciones: observations || "Autoevaluación completada",
-      respuestas: questions.map((q) => ({
-        idPregunta: q.id_pregunta,
-        respuesta: q.respuesta
-      }))
-    };
+    setLoading(true);
+    try {
+      const evaluacionData = {
+        idEmpleado: user.id_empleado,
+        idCategoria: selectedGuideId,
+        evaluador: "Autoevaluación",
+        observaciones: observations.trim() || "Sin observaciones - Autoevaluación completada",
+        respuestas: questions.map((q) => ({
+          idPregunta: q.id_pregunta,
+          respuesta: q.respuesta,
+          noAplica: q.noAplica,  // ✅ NUEVO
+        })),
+      };
 
-    const response = await fetch("http://localhost:3000/evaluaciones", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(evaluacionData),
-    });
+      const response = await fetch("http://localhost:3000/evaluaciones", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(evaluacionData),
+      });
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
-    const resultado = await response.json();
-    setSubmitted(true);
-    alert(`✅ ¡Evaluación #${resultado.idEvaluacion} enviada!`);
-    
-    setTimeout(() => {
-      setSubmitted(false);
-      setObservations("");
-      setQuestions([]);
-      setSelectedGuideId(0);
-      setSelectedProcessId(0);
-    }, 2000);
-  } catch (error: any) {
-    alert(`❌ Error: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-}, [questions.length, selectedGuideId, token, user.id_empleado, observations]);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const resultado = await response.json();
+      setSubmitted(true);
+      alert(`✅ ¡Evaluación #${resultado.idEvaluacion} enviada!`);
+      
+      setTimeout(() => {
+        setSubmitted(false);
+        setObservations("");
+        setQuestions([]);
+        setSelectedGuideId(0);
+        setSelectedProcessId(0);
+      }, 2000);
+    } catch (error: any) {
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [questions, selectedGuideId, token, user.id_empleado, observations]);
 
-  
-  const completedCount = questions.filter((q) => q.respuesta).length;
-  const totalCount = questions.length;
+  // 🔥 CÁLCULO FILTRADO "No Aplica" - ANTES DEL RETURN
+  const applicableQuestions = questions.filter((q) => !q.noAplica);
+  const completedCount = applicableQuestions.filter((q) => q.respuesta).length;
+  const totalCount = applicableQuestions.length || 1;
 
-  
-   return (
+  return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Header SIN CAMBIOS */}
         <Card className="mb-8 shadow-lg border-0">
           <CardContent className="p-8">
             <div className="flex items-start gap-4">
@@ -306,7 +316,7 @@ const loadGuides = useCallback(async () => {
           </CardContent>
         </Card>
 
-        {/* Guía Técnica */}
+        {/* Guía Técnica SIN CAMBIOS */}
         <Card className="mb-6 shadow-sm">
           <CardContent className="p-6">
             <Label className="text-base font-semibold text-gray-900 mb-4 block">
@@ -322,7 +332,7 @@ const loadGuides = useCallback(async () => {
           </CardContent>
         </Card>
 
-        {/* Proceso - SOLO para packaging */}
+        {/* Proceso - SOLO para packaging SIN CAMBIOS */}
         {!isElectrica && selectedGuideId > 0 && procesosOptions.length > 0 && (
           <Card className="mb-8 shadow-sm">
             <CardContent className="p-6">
@@ -341,7 +351,7 @@ const loadGuides = useCallback(async () => {
           </Card>
         )}
 
-        {/* Mensaje para guías eléctricas */}
+        {/* Mensaje para guías eléctricas - CORREGIDO totalCount */}
         {isElectrica && selectedGuideId > 0 && !questions.length && (
           <Card className="mb-8 shadow-sm border-blue-200 bg-blue-50">
             <CardContent className="p-6">
@@ -350,7 +360,7 @@ const loadGuides = useCallback(async () => {
                 <div>
                   <h3 className="font-semibold">⚡ Evaluación Eléctrica Directa</h3>
                   <p className="text-sm mt-1">
-                    Cargando {totalCount} preguntas de la guía {currentGuide?.nombre}...
+                    Cargando preguntas de la guía {currentGuide?.nombre}...
                   </p>
                 </div>
               </div>
@@ -358,7 +368,7 @@ const loadGuides = useCallback(async () => {
           </Card>
         )}
 
-        {/* Placeholder si falta selección */}
+        {/* Placeholder si falta selección SIN CAMBIOS */}
         {selectedGuideId === 0 && (
           <Card className="mb-8 shadow-sm border-2 border-dashed border-gray-200">
             <CardContent className="p-8 text-center">
@@ -369,13 +379,16 @@ const loadGuides = useCallback(async () => {
           </Card>
         )}
 
-        {/* Progreso */}
+        {/* Progreso SIN CAMBIOS - YA USA completedCount/totalCount filtrados */}
         {questions.length > 0 && (
           <Card className="mb-8 shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <Label className="text-lg font-semibold text-gray-900">
-                  📊 Progreso {isElectrica ? '(Eléctrica)' : '(Packaging)'}
+                  📊 Progreso {isElectrica ? '(Eléctrica)' : '(Packaging)'} 
+                  <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    {questions.filter(q => q.noAplica).length} No Aplica
+                  </span>
                 </Label>
                 <span className="text-sm font-medium text-gray-700">
                   {completedCount}/{totalCount}
@@ -386,16 +399,17 @@ const loadGuides = useCallback(async () => {
           </Card>
         )}
 
-        {/* ProcessSection */}
+        {/* ProcessSection CON onNoAplicaToggle ✅ */}
         {questions.length > 0 && (
           <ProcessSection
             title={isElectrica ? currentGuide?.nombre || "Evaluación" : currentProcess?.nombre || "Proceso"}
             questions={questions}
             onToggleQuestion={handleToggleQuestion}
+            onNoAplicaToggle={handleNoAplicaToggle}  // ✅ NUEVO
           />
         )}
 
-        {/* Observaciones */}
+        {/* Observaciones SIN CAMBIOS */}
         <Card className="mb-8 shadow-sm">
           <CardContent className="p-6 md:p-8">
             <Label className="text-lg font-semibold text-gray-900 mb-4 block">💬 Observaciones</Label>
@@ -409,7 +423,7 @@ const loadGuides = useCallback(async () => {
           </CardContent>
         </Card>
 
-        {/* Submit */}
+        {/* Submit - MEJORADO */}
         <div className="flex justify-end">
           {submitted ? (
             <div className="flex items-center gap-3 bg-green-50 border-2 border-green-200 text-green-800 px-8 py-4 rounded-xl font-semibold shadow-lg animate-pulse">
@@ -428,7 +442,7 @@ const loadGuides = useCallback(async () => {
                   Enviando...
                 </>
               ) : (
-                `📤 Enviar ${isElectrica ? 'Evaluación Eléctrica' : 'Evaluación'}`
+                `📤 Enviar ${isElectrica ? 'Evaluación Eléctrica' : 'Evaluación'} (${completedCount}/${totalCount})`
               )}
             </Button>
           )}

@@ -32,7 +32,7 @@ export class EvaluacionesController {
       idCategoria: number;
       evaluador?: string;
       observaciones?: string;
-      respuestas: Array<{ idPregunta: number; respuesta: boolean; comentarios?: string }>;
+      respuestas: Array<{ idPregunta: number; respuesta: boolean; noAplica?: boolean; comentarios?: string }>;  // ✅ noAplica
     }
   ) {
     return await this.dbService.createEvaluacionWithRespuestas(data);
@@ -72,20 +72,29 @@ export class EvaluacionesController {
     return updated;
   }
 
-  @Patch(':id/respuestas')
-  @UseGuards(RolesGuard)
-  @Roles('SUPERVISOR', 'EVALUADOR')
-  @HttpCode(HttpStatus.OK)
-  async updateRespuestas(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateRespuestasDto: UpdateRespuestasDto,
-  ) {
-    await this.dbService.updateRespuestas(id, updateRespuestasDto.respuestas);
-    return { 
-      message: 'Respuestas actualizadas correctamente',
-      cambios: updateRespuestasDto.respuestas.length 
-    };
-  }
+ @Patch(':id/respuestas')
+@UseGuards(RolesGuard)
+@Roles('SUPERVISOR', 'EVALUADOR')
+@HttpCode(HttpStatus.OK)
+async updateRespuestas(
+  @Param('id', ParseIntPipe) id: number,
+  @Body() updateRespuestasDto: UpdateRespuestasDto,
+  @Req() req
+) {
+  const usuarioActual = req.user;
+  const evaluadorNombre = `${usuarioActual.nombre || usuarioActual.empleado} (${usuarioActual.nivel_acceso})`;
+
+  const result = await this.dbService.guardarCambiosEvaluador(
+    id, 
+    updateRespuestasDto.respuestas,
+    evaluadorNombre
+  );
+
+  return { 
+    message: 'Respuestas actualizadas correctamente',
+    ...result,
+  };
+}
 
   @Delete(':id')
   @UseGuards(RolesGuard)
@@ -98,20 +107,24 @@ export class EvaluacionesController {
   }
 
   @Get(':id/exportar')
-  @UseGuards(RolesGuard)
-  @Roles('SUPERVISOR', 'EVALUADOR')
-  async exportarEvaluacion(
-    @Param('id', ParseIntPipe) id: number,
-    @Res() res: Response,
-  ) {
-    const { buffer, filename } = await this.excelService.exportarEvaluacion(id);
+@UseGuards(RolesGuard)
+@Roles('SUPERVISOR', 'EVALUADOR')
+async exportarEvaluacion(
+  @Param('id', ParseIntPipe) id: number,
+  @Res() res: Response,
+) {
+  const { buffer, filename } = await this.excelService.exportarEvaluacion(id);
 
-    res.status(HttpStatus.OK)
-      .set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': buffer.length.toString(),
-      })
-      .send(buffer);
-  }
+  res.status(HttpStatus.OK)
+    .set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length.toString(),
+      // ✅ FIX: Evita corrupción
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    })
+    .send(buffer);
+}
 }
