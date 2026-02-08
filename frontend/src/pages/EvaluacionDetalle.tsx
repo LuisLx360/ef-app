@@ -6,6 +6,7 @@ import { Label } from "../components/ui/label";
 import { Progress } from "../components/ui/progress";
 import { ProcessSection } from "../components/evaluation/ProcessSection";
 import { CheckCircle2 } from "lucide-react";
+import { apiFetch } from "../lib/api"; // ✅ Import del helper
 
 // ✅ INTERFACES ACTUALIZADAS
 interface EvaluacionDetalleRaw {
@@ -53,20 +54,16 @@ export default function EvaluationDetalle() {
   const [evaluation, setEvaluation] = useState<EvaluacionDetalle | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const token = localStorage.getItem("token");
-
   useEffect(() => {
-    if (!id || !token) return;
+    if (!id) return;
 
     const fetchEvaluation = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const raw: EvaluacionDetalleRaw = await res.json();
+        // ✅ USO DE apiFetch
+        const raw: EvaluacionDetalleRaw = await apiFetch(`/evaluaciones/${id}`);
+
         console.log("RAW evaluación backend:", raw);
 
         // ✅ NORMALIZACIÓN CON noAplica
@@ -88,7 +85,7 @@ export default function EvaluationDetalle() {
 
         console.log("✅ Evaluación normalizada:", normalized);
         setEvaluation(normalized);
-      } catch (err) {
+      } catch (err: any) {
         console.error("❌ Error fetch evaluación:", err);
         setEvaluation(null);
       } finally {
@@ -97,7 +94,8 @@ export default function EvaluationDetalle() {
     };
 
     fetchEvaluation();
-  }, [id, token]);
+  }, [id]);
+
 
   if (loading) {
     return (

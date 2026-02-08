@@ -94,5 +94,4 @@ export const historial_evaluaciones = pgTable("historial_evaluaciones", {
 
 
 
-// MODIFICAR evaluaciones
 

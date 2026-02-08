@@ -1,10 +1,11 @@
+// src/pages/MisEvaluaciones.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FilterTabs }  from '../components/ui/FilterTabs'; 
+import { FilterTabs } from '../components/ui/FilterTabs';
 import EvaluationCard from '../components/evaluation/EvaluationCard';
-/* import { StatusBadge } from '../ui/StatusBadge'; */
 import type { EvaluationApi, EvaluationUI } from '../../src/types/evaluation';
 import { mapEvaluation } from '../../src/types/evaluation';
+import { apiFetch } from '../lib/api'; // ✅ Import de apiFetch
 
 interface User {
   id_empleado: string;
@@ -24,12 +25,12 @@ export default function MisEvaluaciones() {
   });
 
   const [evaluations, setEvaluations] = useState<EvaluationUI[]>([]);
-  const [filter, setFilter] = useState<
-  'all' | 'pending-review' | 'in-review' | 'approved' | 'failed'
->('all');
+  const [filter, setFilter] = useState<'all' | 'pending-review' | 'in-review' | 'approved' | 'failed'>('all');
   const [loading, setLoading] = useState(true);
 
+  // -----------------------------
   // Obtener user desde localStorage
+  // -----------------------------
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -43,43 +44,46 @@ export default function MisEvaluaciones() {
     }
   }, []);
 
-  // Traer evaluaciones desde backend con JWT
+  // -----------------------------
+  // Traer evaluaciones del empleado
+  // -----------------------------
   useEffect(() => {
     if (!user.id_empleado) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const fetchEvaluations = async () => {
+      try {
+        setLoading(true);
 
-    setLoading(true);
-    fetch(`http://localhost:3000/evaluaciones/empleado/${user.id_empleado}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: EvaluationApi[] | any) => {
+        // ✅ USO DE apiFetch
+        const data: EvaluationApi[] = await apiFetch(`/evaluaciones/empleado/${user.id_empleado}`);
+
         if (Array.isArray(data)) {
           setEvaluations(data.map(mapEvaluation));
         } else {
           console.warn('API no devolvió un array', data);
           setEvaluations([]);
         }
-      })
-      .catch(err => {
-        console.error('Error fetch evaluaciones:', err);
+      } catch (err) {
+        console.error('❌ Error fetch evaluaciones:', err);
         setEvaluations([]);
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvaluations();
   }, [user.id_empleado]);
 
+  // -----------------------------
+  // Abrir detalle
+  // -----------------------------
   const handleOpenEvaluation = (id: number) => {
     navigate(`/evaluaciones/${id}`);
   };
 
+  // -----------------------------
+  // Filtrado de evaluaciones
+  // -----------------------------
   const filteredEvaluations = evaluations.filter((evaluation) => {
     if (filter === 'all') return true;
     return evaluation.status === filter;

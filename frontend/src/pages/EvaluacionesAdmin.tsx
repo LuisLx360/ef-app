@@ -5,51 +5,44 @@ import { FilterTabs } from "../components/ui/FilterTabs";
 import EvaluationCard from "../components/evaluation/EvaluationCard";
 import type { EvaluationApi, EvaluationUI } from "../types/evaluation";
 import { mapEvaluation } from "../types/evaluation";
+import { apiFetch } from "../lib/api"; // ✅ Import de apiFetch
 
 export default function EvaluacionesAdmin() {
   const navigate = useNavigate();
   const [evaluations, setEvaluations] = useState<EvaluationUI[]>([]);
-  
-  const [filter, setFilter] = useState<
-  'all' | 'pending-review' | 'in-review' | 'approved' | 'failed'
->('all');
+  const [filter, setFilter] = useState<'all' | 'pending-review' | 'in-review' | 'approved' | 'failed'>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    const fetchEvaluations = async () => {
+      try {
+        setLoading(true);
 
-    setLoading(true);
-    fetch("http://localhost:3000/evaluaciones", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: (EvaluationApi & { nombreEmpleado?: string })[] | any) => {
+        // ✅ USO DE apiFetch
+        const data: (EvaluationApi & { nombreEmpleado?: string })[] = await apiFetch("/evaluaciones");
+
         if (Array.isArray(data)) {
           setEvaluations(
             data.map(api => {
               const ui = mapEvaluation(api);
               return {
                 ...ui,
-                userName: api.nombreEmpleado || 'Desconocido', // Agregamos el nombre del evaluador
+                userName: api.nombreEmpleado || 'Desconocido', // Nombre del evaluador
               };
             })
           );
         } else {
           setEvaluations([]);
         }
-      })
-      .catch(err => {
-        console.error("Error fetch evaluaciones:", err);
+      } catch (err) {
+        console.error("❌ Error fetch evaluaciones:", err);
         setEvaluations([]);
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEvaluations();
   }, []);
 
   const handleOpenEvaluation = (id: number) => {

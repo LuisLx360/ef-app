@@ -1,4 +1,4 @@
-// src/pages/EvaluacionDetalleAdmin.tsx - ADAPTADO "No Aplica"
+// src/pages/EvaluacionDetalleAdmin.tsx - ADAPTADO "No Aplica" con apiFetch
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "../components/ui/card";
@@ -9,11 +9,11 @@ import { Button } from "../components/ui/button";
 import { Loader2, Download, Trash2, CheckCheck, CheckCircle2 } from "lucide-react";
 import { ProcessSection } from "../components/evaluation/ProcessSection";
 import { Dialog, DialogFooter, useDialog } from "../components/ui/dialog";
+import { apiFetch } from "../lib/api"; // ✅ Import del helper
 
 /* =======================
    TIPOS - ACTUALIZADOS
 ======================== */
-
 interface EvaluacionDetalleRaw {
   idEvaluacion: number;
   idEmpleado: string;
@@ -23,7 +23,6 @@ interface EvaluacionDetalleRaw {
   observaciones: string;
   estado: string;
 
-  // 🔹 vienen del backend
   porcentaje_original: number;
   porcentaje_actual: number;
 
@@ -61,7 +60,6 @@ interface EvaluacionDetalleAdmin {
   fechaEvaluacion: string;
   estado: string;
 
-  // 🆕 PORCENTAJES NORMALIZADOS
   porcentajeOriginal: number;
   porcentajeFinal: number;
 
@@ -71,7 +69,6 @@ interface EvaluacionDetalleAdmin {
 /* =======================
    COMPONENTE
 ======================== */
-
 export default function EvaluacionDetalleAdmin() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -84,25 +81,18 @@ export default function EvaluacionDetalleAdmin() {
   const [estadoEdit, setEstadoEdit] = useState<string>("");
 
   const deleteDialog = useDialog();
-  const token = localStorage.getItem("token");
 
   /* =======================
      FETCH EVALUACIÓN - ACTUALIZADO
   ========================== */
-
   const fetchEvaluation = useCallback(async () => {
-    if (!id || !token) return;
+    if (!id) return;
 
     try {
       setLoading(true);
 
-      const res = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw: EvaluacionDetalleRaw = await res.json();
-      /* console.log("📦 RAW evaluación:", raw); */
+      // ✅ USO DE apiFetch
+      const raw: EvaluacionDetalleRaw = await apiFetch(`/evaluaciones/${id}`);
 
       // ✅ NORMALIZACIÓN CON noAplica
       const normalized: EvaluacionDetalleAdmin = {
@@ -114,15 +104,13 @@ export default function EvaluacionDetalleAdmin() {
         evaluadorNombre: raw.evaluador || "Sin evaluador",
         fechaEvaluacion: raw.fechaEvaluacion,
         estado: raw.estado || "pendiente",
-
         porcentajeOriginal: raw.porcentaje_original,
         porcentajeFinal: raw.porcentaje_actual,
-
         respuestas: raw.respuestas.map((r) => ({
           idPregunta: r.idPregunta,
           idRespuesta: r.idRespuesta,
           respuesta: r.respuesta,
-          noAplica: r.no_aplica || false,  // ✅ NUEVO
+          noAplica: r.no_aplica || false, // ✅ NUEVO
           titulo: r.titulo,
         })),
       };
@@ -136,13 +124,13 @@ export default function EvaluacionDetalleAdmin() {
     } finally {
       setLoading(false);
     }
-  }, [id, token]);
+  }, [id]);
 
   useEffect(() => {
     fetchEvaluation();
   }, [fetchEvaluation]);
 
-  // 🔹 Toggle pregunta - SIN CAMBIOS (solo afecta respuesta)
+  // 🔹 Toggle pregunta - SIN CAMBIOS
   const handleToggleQuestion = useCallback((questionId: number) => {
     setRespuestasEdit((prev) =>
       prev.map((r) =>
@@ -156,7 +144,7 @@ export default function EvaluacionDetalleAdmin() {
     setRespuestasEdit((prev) =>
       prev.map((r) =>
         r.idPregunta === questionId 
-          ? { ...r, noAplica: !r.noAplica, respuesta: false }  // Reset respuesta
+          ? { ...r, noAplica: !r.noAplica, respuesta: false } // Reset respuesta
           : r
       )
     );
@@ -166,10 +154,7 @@ export default function EvaluacionDetalleAdmin() {
   const handleSaveChanges = async () => {
     if (!evaluation || !id) return;
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    // Detectar cambios en respuestas Y noAplica
+    // Detectar cambios en respuestas y noAplica
     const cambiosRespuestas = respuestasEdit.filter((r) =>
       evaluation.respuestas.some(
         (orig) =>
@@ -178,7 +163,6 @@ export default function EvaluacionDetalleAdmin() {
       )
     );
 
-    // Detectar cambio de estado
     const cambioEstado = estadoEdit !== evaluation.estado;
 
     if (cambiosRespuestas.length === 0 && !cambioEstado) return;
@@ -188,43 +172,24 @@ export default function EvaluacionDetalleAdmin() {
 
       // 1️⃣ Actualizar estado si cambió
       if (cambioEstado) {
-        const resEstado = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
+        await apiFetch(`/evaluaciones/${id}`, {
           method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({ estado: estadoEdit }),
         });
-
-        if (!resEstado.ok) {
-          throw new Error(`HTTP ${resEstado.status} al actualizar estado`);
-        }
       }
 
       // 2️⃣ Actualizar respuestas CON noAplica
       if (cambiosRespuestas.length > 0) {
-        const resResp = await fetch(
-          `http://localhost:3000/evaluaciones/${id}/respuestas`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ 
-              respuestas: cambiosRespuestas.map(r => ({
-                idPregunta: r.idPregunta,
-                respuesta: r.respuesta,
-                noAplica: r.noAplica  // ✅ NUEVO
-              }))
-            }),
-          }
-        );
-
-        if (!resResp.ok) {
-          throw new Error(`HTTP ${resResp.status} al actualizar respuestas`);
-        }
+        await apiFetch(`/evaluaciones/${id}/respuestas`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            respuestas: cambiosRespuestas.map((r) => ({
+              idPregunta: r.idPregunta,
+              respuesta: r.respuesta,
+              noAplica: r.noAplica, // ✅ NUEVO
+            })),
+          }),
+        });
       }
 
       // 3️⃣ Refrescar datos
@@ -243,13 +208,9 @@ export default function EvaluacionDetalleAdmin() {
     try {
       setDeleting(true);
       deleteDialog.close();
-      const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:3000/evaluaciones/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await apiFetch(`/evaluaciones/${id}`, { method: "DELETE" });
+
       navigate("/evaluaciones-admin");
     } catch (err) {
       console.error("❌ Error eliminando:", err);
@@ -259,42 +220,54 @@ export default function EvaluacionDetalleAdmin() {
   };
 
   const handleDownload = async () => {
-    if (!id || !token || !evaluation) {
-      alert('Faltan datos para descargar');
+  if (!id || !evaluation) {
+    alert("Faltan datos para descargar");
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("❌ Sesión expirada");
       return;
     }
 
-    try {
-      const res = await fetch(`http://localhost:3000/evaluaciones/${id}/exportar`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    // ✅ fetch NATIVO - NO apiFetch para Excel
+    const res = await fetch(`http://localhost:3000/api/evaluaciones/exportar/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-
-      const nombreEvaluado = evaluation.empleadoNombre.replace(/[^a-zA-Z0-9\s]/g, '_');
-      const nombreEvaluador = evaluation.evaluadorNombre.replace(/[^a-zA-Z0-9\s]/g, '_');
-      const nombreGuia = evaluation.categoriaNombre.replace(/[^a-zA-Z0-9\s]/g, '_');
-      const fecha = new Date(evaluation.fechaEvaluacion).toISOString().split('T')[0];
-
-      a.download = `${nombreEvaluado}_evaluado_por_${nombreEvaluador}_${nombreGuia}_${fecha}.xlsx`;
-
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      console.log('✅ Excel descargado correctamente');
-    } catch (err: any) {
-      console.error('❌ Error descargando Excel:', err);
-      alert(`Error al descargar: ${err.message}`);
+    if (res.status === 404) {
+      alert("❌ Evaluación no encontrada");
+      return;
     }
-  };
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    
+    const a = document.createElement("a");
+    a.href = url;
+    const nombreEvaluado = evaluation.empleadoNombre.replace(/[^a-zA-Z0-9\s]/g, "_");
+    const nombreEvaluador = evaluation.evaluadorNombre.replace(/[^a-zA-Z0-9\s]/g, "_");
+    const nombreGuia = evaluation.categoriaNombre.replace(/[^a-zA-Z0-9\s]/g, "_");
+    const fecha = new Date(evaluation.fechaEvaluacion).toISOString().split("T")[0];
+    a.download = `${nombreEvaluado}_evaluado_por_${nombreEvaluador}_${nombreGuia}_${fecha}.xlsx`;
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+  } catch (err: any) {
+    console.error("❌ Error descargando Excel:", err);
+    alert(`Error: ${err.message}`);
+  }
+};
+
+
+
+
 
   if (loading) {
     return (

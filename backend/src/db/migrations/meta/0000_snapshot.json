@@ -1,0 +1,441 @@
+{
+  "id": "7eecbda8-933e-4216-9112-b3ced308f87a",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.categorias": {
+      "name": "categorias",
+      "schema": "",
+      "columns": {
+        "id_categoria": {
+          "name": "id_categoria",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nivel": {
+          "name": "nivel",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descripcion": {
+          "name": "descripcion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "categorias_nombre_unique": {
+          "name": "categorias_nombre_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "nombre"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.empleados": {
+      "name": "empleados",
+      "schema": "",
+      "columns": {
+        "id_empleado": {
+          "name": "id_empleado",
+          "type": "varchar(10)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nivel_acceso": {
+          "name": "nivel_acceso",
+          "type": "varchar(25)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "empleado": {
+          "name": "empleado",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jefe_inmediato": {
+          "name": "jefe_inmediato",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "equipo_autonomo": {
+          "name": "equipo_autonomo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.evaluaciones": {
+      "name": "evaluaciones",
+      "schema": "",
+      "columns": {
+        "id_evaluacion": {
+          "name": "id_evaluacion",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_empleado": {
+          "name": "id_empleado",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_categoria": {
+          "name": "id_categoria",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_evaluacion": {
+          "name": "fecha_evaluacion",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "evaluador": {
+          "name": "evaluador",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observaciones": {
+          "name": "observaciones",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pendiente'"
+        },
+        "porcentaje_original": {
+          "name": "porcentaje_original",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "0.00"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.historial_evaluaciones": {
+      "name": "historial_evaluaciones",
+      "schema": "",
+      "columns": {
+        "id_historial": {
+          "name": "id_historial",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_evaluacion": {
+          "name": "id_evaluacion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "porcentaje": {
+          "name": "porcentaje",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_modificacion": {
+          "name": "fecha_modificacion",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "modificado_por": {
+          "name": "modificado_por",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observaciones_modificacion": {
+          "name": "observaciones_modificacion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "es_original": {
+          "name": "es_original",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "historial_evaluaciones_id_evaluacion_evaluaciones_id_evaluacion_fk": {
+          "name": "historial_evaluaciones_id_evaluacion_evaluaciones_id_evaluacion_fk",
+          "tableFrom": "historial_evaluaciones",
+          "tableTo": "evaluaciones",
+          "columnsFrom": [
+            "id_evaluacion"
+          ],
+          "columnsTo": [
+            "id_evaluacion"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.preguntas": {
+      "name": "preguntas",
+      "schema": "",
+      "columns": {
+        "id_pregunta": {
+          "name": "id_pregunta",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_categoria": {
+          "name": "id_categoria",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_proceso": {
+          "name": "id_proceso",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descripcion": {
+          "name": "descripcion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "peso": {
+          "name": "peso",
+          "type": "numeric(3, 2)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'1.00'"
+        },
+        "orden": {
+          "name": "orden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.procesos": {
+      "name": "procesos",
+      "schema": "",
+      "columns": {
+        "id_proceso": {
+          "name": "id_proceso",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_categoria": {
+          "name": "id_categoria",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descripcion": {
+          "name": "descripcion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "orden": {
+          "name": "orden",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.respuestas": {
+      "name": "respuestas",
+      "schema": "",
+      "columns": {
+        "id_respuesta": {
+          "name": "id_respuesta",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_evaluacion": {
+          "name": "id_evaluacion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_pregunta": {
+          "name": "id_pregunta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "respuesta": {
+          "name": "respuesta",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "no_aplica": {
+          "name": "no_aplica",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "comentarios": {
+          "name": "comentarios",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "respuestas_id_evaluacion_evaluaciones_id_evaluacion_fk": {
+          "name": "respuestas_id_evaluacion_evaluaciones_id_evaluacion_fk",
+          "tableFrom": "respuestas",
+          "tableTo": "evaluaciones",
+          "columnsFrom": [
+            "id_evaluacion"
+          ],
+          "columnsTo": [
+            "id_evaluacion"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "respuestas_id_pregunta_preguntas_id_pregunta_fk": {
+          "name": "respuestas_id_pregunta_preguntas_id_pregunta_fk",
+          "tableFrom": "respuestas",
+          "tableTo": "preguntas",
+          "columnsFrom": [
+            "id_pregunta"
+          ],
+          "columnsTo": [
+            "id_pregunta"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "respuestas_id_evaluacion_id_pregunta_unique": {
+          "name": "respuestas_id_evaluacion_id_pregunta_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id_evaluacion",
+            "id_pregunta"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -1,5 +1,6 @@
 // src/components/evaluation/Evaluation.tsx - CÓDIGO COMPLETO CON "No Aplica"
 import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "../../lib/api"; // ✅ Import del helper
 import { Button } from "../ui/button";
 import { Card, CardContent } from "../ui/card";
 import { Textarea } from "../ui/textarea";
@@ -51,9 +52,10 @@ export default function Evaluation() {
 
   const token = localStorage.getItem("token");
 
-  // loadGuides SIN CAMBIOS
+  // -----------------------------
+  // Carga de guías y procesos
+  // -----------------------------
   const loadGuides = useCallback(async () => {
-    const token = localStorage.getItem("token");
     if (!token) return setLoading(false);
 
     setLoading(true);
@@ -61,21 +63,16 @@ export default function Evaluation() {
     try {
       console.log('🔍 Evaluación → /categorias/evaluacion');
       
-      const categoriasResp = await fetch("http://localhost:3000/categorias/evaluacion", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const categorias: Categoria[] = await apiFetch('/categorias/evaluacion');
 
-      if (!categoriasResp.ok) throw new Error('No categorías');
-
-      const categorias: Categoria[] = await categoriasResp.json();
-      
       const guidesWithProcesses = await Promise.all(
         categorias.map(async (cat) => {
-          const procesosResp = await fetch(
-           `http://localhost:3000/categorias/${cat.id_categoria}/procesos/evaluacion`,
-           { headers: { Authorization: `Bearer ${token}` } }
-          );
-          const procesos: Proceso[] = procesosResp.ok ? await procesosResp.json() : [];
+          let procesos: Proceso[] = [];
+          try {
+            procesos = await apiFetch(`/categorias/${cat.id_categoria}/procesos/evaluacion`);
+          } catch (err) {
+            console.warn(`⚠️ No hay procesos para ${cat.nombre}`);
+          }
           
           return { 
             ...cat, 
@@ -92,15 +89,16 @@ export default function Evaluation() {
 
     } catch (error) {
       console.error('❌ Error:', error);
+    } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   const currentGuide = guides.find((g) => g.id_categoria === selectedGuideId);
   const isElectrica = currentGuide?.area === 'electrico';
-  const currentProcess = isElectrica 
-    ? null 
-    : guides.find((g) => g.id_categoria === selectedGuideId)?.procesos?.find((p) => p.id_proceso === selectedProcessId);
+  const currentProcess = !isElectrica && currentGuide
+    ? currentGuide.procesos?.find((p) => p.id_proceso === selectedProcessId)
+    : null;
 
   const guidesOptions: Option[] = guides.map((guide) => ({
     value: guide.id_categoria.toString(),
@@ -114,7 +112,9 @@ export default function Evaluation() {
       }))
     : [];
 
-  // useEffects SIN CAMBIOS
+  // -----------------------------
+  // useEffects
+  // -----------------------------
   useEffect(() => {
     if (token) {
       const storedUser = localStorage.getItem("user");
@@ -145,26 +145,22 @@ export default function Evaluation() {
     }
   }, [selectedGuideId, selectedProcessId, token, isElectrica]);
 
-  // loadQuestions CON noAplica ✅
+  // -----------------------------
+  // Carga de preguntas
+  // -----------------------------
   const loadQuestionsDirecto = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `http://localhost:3000/categorias/${selectedGuideId}/preguntas`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const preguntasData: any[] = await apiFetch(`/categorias/${selectedGuideId}/preguntas`);
+      setQuestions(
+        preguntasData.map((q) => ({
+          id_pregunta: q.id_pregunta,
+          titulo: q.titulo,
+          peso: parseFloat(q.peso),
+          respuesta: false,
+          noAplica: false,
+        }))
       );
-      if (response.ok) {
-        const preguntasData: any[] = await response.json();
-        setQuestions(
-          preguntasData.map((q) => ({
-            id_pregunta: q.id_pregunta,
-            titulo: q.titulo,
-            peso: parseFloat(q.peso),
-            respuesta: false,
-            noAplica: false,  // ✅ NUEVO
-          }))
-        );
-      }
     } catch (error) {
       console.error("❌ Error preguntas eléctricas:", error);
       setQuestions([]);
@@ -176,22 +172,18 @@ export default function Evaluation() {
   const loadQuestions = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `http://localhost:3000/categorias/${selectedGuideId}/procesos/${selectedProcessId}/preguntas`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const preguntasData: any[] = await apiFetch(
+        `/categorias/${selectedGuideId}/procesos/${selectedProcessId}/preguntas`
       );
-      if (response.ok) {
-        const preguntasData: any[] = await response.json();
-        setQuestions(
-          preguntasData.map((q) => ({
-            id_pregunta: q.id_pregunta,
-            titulo: q.titulo,
-            peso: parseFloat(q.peso),
-            respuesta: false,
-            noAplica: false,  // ✅ NUEVO
-          }))
-        );
-      }
+      setQuestions(
+        preguntasData.map((q) => ({
+          id_pregunta: q.id_pregunta,
+          titulo: q.titulo,
+          peso: parseFloat(q.peso),
+          respuesta: false,
+          noAplica: false,
+        }))
+      );
     } catch (error) {
       console.error("❌ Error preguntas packaging:", error);
       setQuestions([]);
@@ -200,6 +192,9 @@ export default function Evaluation() {
     }
   };
 
+  // -----------------------------
+  // Handlers
+  // -----------------------------
   const handleGuideChange = (guideId: string) => {
     const id = parseInt(guideId);
     if (!isNaN(id) && id > 0) {
@@ -209,26 +204,12 @@ export default function Evaluation() {
     }
   };
 
-  // ✅ NUEVO HANDLER No Aplica
-  const handleNoAplicaToggle = useCallback((questionId: number) => {
-    setQuestions((prev) =>
-      prev.map((q) =>
-        q.id_pregunta === questionId 
-          ? { ...q, noAplica: !q.noAplica, respuesta: false }  // Reset respuesta
-          : q
-      )
-    );
-  }, []);
-
   const handleProcessChange = (processId: string) => {
     const id = parseInt(processId);
-    if (!isNaN(id) && id > 0) {
-      setSelectedProcessId(id);
-    }
+    if (!isNaN(id) && id > 0) setSelectedProcessId(id);
   };
 
   const handleToggleQuestion = useCallback((questionId: number) => {
-    console.log('🎯 Toggle ejecutado:', questionId);
     setQuestions((prev) =>
       prev.map((q) =>
         q.id_pregunta === questionId ? { ...q, respuesta: !q.respuesta } : q
@@ -236,7 +217,19 @@ export default function Evaluation() {
     );
   }, []);
 
-  // handleSubmit CON noAplica ✅
+  const handleNoAplicaToggle = useCallback((questionId: number) => {
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id_pregunta === questionId 
+          ? { ...q, noAplica: !q.noAplica, respuesta: false }
+          : q
+      )
+    );
+  }, []);
+
+  // -----------------------------
+  // Submit
+  // -----------------------------
   const handleSubmit = useCallback(async () => {
     if (questions.length === 0 || selectedGuideId === 0) {
       alert('⚠️ Selecciona una guía y responde las preguntas');
@@ -261,21 +254,17 @@ export default function Evaluation() {
         respuestas: questions.map((q) => ({
           idPregunta: q.id_pregunta,
           respuesta: q.respuesta,
-          noAplica: q.noAplica,  // ✅ NUEVO
+          noAplica: q.noAplica,
         })),
       };
 
-      const response = await fetch("http://localhost:3000/evaluaciones", {
+      const resultado = await apiFetch("/evaluaciones", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(evaluacionData),
       });
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      
-      const resultado = await response.json();
       setSubmitted(true);
-      alert(`✅ ¡Evaluación #${resultado.idEvaluacion} enviada!`);
+      /* alert(`✅ ¡Evaluación #${resultado.idEvaluacion} enviada!`); */
       
       setTimeout(() => {
         setSubmitted(false);
@@ -291,7 +280,9 @@ export default function Evaluation() {
     }
   }, [questions, selectedGuideId, token, user.id_empleado, observations]);
 
-  // 🔥 CÁLCULO FILTRADO "No Aplica" - ANTES DEL RETURN
+  // -----------------------------
+  // Filtrado "No Aplica"
+  // -----------------------------
   const applicableQuestions = questions.filter((q) => !q.noAplica);
   const completedCount = applicableQuestions.filter((q) => q.respuesta).length;
   const totalCount = applicableQuestions.length || 1;
