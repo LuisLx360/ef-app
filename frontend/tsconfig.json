@@ -1,7 +1,7 @@
 {
+  // Root config para project references (Vite + TS recomendado)
   "files": [],
   "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
+    { "path": "./tsconfig.app.json" }
   ]
 }

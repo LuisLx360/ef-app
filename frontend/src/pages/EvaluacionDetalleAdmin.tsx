@@ -202,23 +202,6 @@ export default function EvaluacionDetalleAdmin() {
   };
 
   // 🔹 Resto de funciones SIN CAMBIOS
-  const handleDeleteEvaluation = async () => {
-    if (!evaluation || !id) return;
-
-    try {
-      setDeleting(true);
-      deleteDialog.close();
-
-      await apiFetch(`/evaluaciones/${id}`, { method: "DELETE" });
-
-      navigate("/evaluaciones-admin");
-    } catch (err) {
-      console.error("❌ Error eliminando:", err);
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   const handleDownload = async () => {
   if (!id || !evaluation) {
     alert("Faltan datos para descargar");
@@ -232,8 +215,11 @@ export default function EvaluacionDetalleAdmin() {
       return;
     }
 
-    // ✅ fetch NATIVO - NO apiFetch para Excel
-    const res = await fetch(`http://localhost:3000/api/evaluaciones/exportar/${id}`, {
+    // ✅ Usar variable de entorno para apuntar al backend en Railway
+    const API_BASE = import.meta.env.VITE_API_URL;
+
+    // fetch nativo para descargar Excel
+    const res = await fetch(`${API_BASE}/evaluaciones/exportar/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -245,15 +231,17 @@ export default function EvaluacionDetalleAdmin() {
 
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
-    
+
     const a = document.createElement("a");
     a.href = url;
+
     const nombreEvaluado = evaluation.empleadoNombre.replace(/[^a-zA-Z0-9\s]/g, "_");
     const nombreEvaluador = evaluation.evaluadorNombre.replace(/[^a-zA-Z0-9\s]/g, "_");
     const nombreGuia = evaluation.categoriaNombre.replace(/[^a-zA-Z0-9\s]/g, "_");
     const fecha = new Date(evaluation.fechaEvaluacion).toISOString().split("T")[0];
+
     a.download = `${nombreEvaluado}_evaluado_por_${nombreEvaluador}_${nombreGuia}_${fecha}.xlsx`;
-    
+
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

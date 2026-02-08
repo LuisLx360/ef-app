@@ -8,9 +8,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  
+
   // ✅ useAuth AQUÍ (body del componente) - NO en handler
   const { login } = useAuth();
+
+  // Base URL desde la variable de entorno
+  const API_BASE = import.meta.env.VITE_API_URL;
 
   const handleIdChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const id = e.target.value.trim().toUpperCase();
@@ -22,10 +25,11 @@ export default function Login() {
         setLoading(true);
         console.log('🚀 INICIANDO FETCH →', id);
 
-        const response = await fetch('http://localhost:3000/auth/login', {
+        const response = await fetch(`${API_BASE}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id_empleado: id }),
+          credentials: 'include', // ✅ permite cookies/session
         });
 
         console.log('📡 STATUS:', response.status, 'OK:', response.ok);
@@ -33,12 +37,12 @@ export default function Login() {
         if (response.ok) {
           const data = await response.json();
           console.log('✅ DATA:', data);
-          
+
           // ✅ login DEL HOOK (definido arriba)
           login(data.access_token, data.empleado);
           setEmployeeName(data.empleado.nombre);
           console.log('✅ Login EXITOSO:', data.empleado.nombre);
-          
+
         } else {
           const errorText = await response.text();
           console.log('❌ ERROR:', response.status, errorText);
@@ -58,6 +62,8 @@ export default function Login() {
       setEmployeeName('');
     }
   };
+
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
