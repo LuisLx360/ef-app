@@ -202,6 +202,23 @@ export default function EvaluacionDetalleAdmin() {
   };
 
   // 🔹 Resto de funciones SIN CAMBIOS
+  const handleDeleteEvaluation = async () => {
+    if (!evaluation || !id) return;
+
+    try {
+      setDeleting(true);
+      deleteDialog.close();
+
+      await apiFetch(`/evaluaciones/${id}`, { method: "DELETE" });
+
+      navigate("/evaluaciones-admin");
+    } catch (err) {
+      console.error("❌ Error eliminando:", err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleDownload = async () => {
   if (!id || !evaluation) {
     alert("Faltan datos para descargar");
