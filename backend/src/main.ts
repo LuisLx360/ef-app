@@ -1,67 +1,84 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import * as dotenv from 'dotenv';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-// 🔹 Cargar variables de entorno ANTES de cualquier import
-dotenv.config();
+
+// Cargar .env solo en local
+if (process.env.NODE_ENV !== 'production') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config();
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  // 🔹 CORS para tu frontend Vite/React
+
+  // 🌍 CORS seguro para Railway + local
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:5173',
+  ].filter(Boolean);
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Authorization',
   });
 
-  // 🔹 Validación global (recomendado)
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
+  // 🛡️ Validaciones globales
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
-  // 🔹 Prefijo global para APIs
+  // 🌐 Prefijo global API
   app.setGlobalPrefix('api', {
-    exclude: ['health', 'swagger', 'auth/login']
+    exclude: ['health', 'swagger'],
   });
 
-  // 🔹 Swagger para desarrollo (FIX COMPLETO)
+  // 📘 Swagger solo en desarrollo
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('EF App API')
       .setDescription('API para digitalización de formularios de evaluación')
       .setVersion('1.0')
-      .addBearerAuth(  // ✅ CONFIGURACIÓN COMPLETA
+      .addBearerAuth(
         {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
           name: 'Authorization',
-          description: 'Pega tu token: Bearer eyJhbGciOiJIUzI1NiIs...',
           in: 'header',
         },
-        'JWT-auth'  // ✅ NOMBRE ESPECÍFICO
+        'JWT-auth',
       )
       .build();
-    
+
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  const PORT = process.env.PORT || 3000;
-  await app.listen(PORT);
-  
-  console.log(`🚀 Backend corriendo en http://localhost:${PORT}`);
-  console.log(`📚 Swagger docs: http://localhost:${PORT}/api/docs`);
-  console.log(`✅ Supabase conectado: ${!!process.env.DATABASE_URL ? 'Sí' : 'No'}`);
+  // 🚀 Puerto Railway (con fallback local)
+  const port = Number(process.env.PORT) || 3000;
+  await app.listen(port);
+
+  console.log(`🚀 Backend iniciado en el puerto ${port}`);
+  console.log(`🌍 CORS permitido para:`, allowedOrigins);
+  console.log(`🗄️ DATABASE_URL presente: ${!!process.env.DATABASE_URL}`);
 }
 
-bootstrap().catch(err => {
+
+bootstrap().catch((err) => {
   console.error('❌ Error al iniciar servidor:', err);
   process.exit(1);
 });
