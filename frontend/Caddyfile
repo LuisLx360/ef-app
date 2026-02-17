@@ -1,0 +1,26 @@
+# Caddyfile para Railway
+:{$PORT} {
+    root * dist
+    file_server
+
+    # Manejo de rutas para Single Page Application (React/Vite)
+    try_files {path} /index.html
+
+    # FORZAR NO CACHÉ PARA EL HTML
+    @html {
+        path *.html /
+    }
+    header @html {
+        Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate"
+        Pragma "no-cache"
+        Expires "0"
+    }
+
+    # Cache larga para assets (JS/CSS) porque tienen hash en el nombre
+    @assets {
+        path /assets/*
+    }
+    header @assets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+}
