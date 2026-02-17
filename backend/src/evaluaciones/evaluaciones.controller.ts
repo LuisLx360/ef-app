@@ -1,6 +1,6 @@
 import { 
   Controller, Get, Post, Patch, Delete, Param, Body, ParseIntPipe,
-  UseGuards, NotFoundException, HttpStatus, HttpCode, Req, Res
+  UseGuards, NotFoundException, HttpStatus, HttpCode, Req, Res, UnauthorizedException 
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { DbService } from '../db/db.service';
@@ -52,14 +52,34 @@ export class EvaluacionesController {
       .send(buffer);
   }
 
-  // ✅ ✅ USUARIO NORMAL - QUITAR RolesGuard
+  // ✅ USUARIO NORMAL - QUITAR RolesGuard
   @Get('empleado/:idEmpleado')
   @ApiBearerAuth('JWT-auth')
   async getEvaluacionesByEmpleado(@Param('idEmpleado') idEmpleado: string) {
     return await this.dbService.getEvaluacionesByEmpleado(idEmpleado);
   }
 
-  // ✅ ✅ USUARIO NORMAL - QUITAR RolesGuard
+  // ✅ SUPERVISOR / EVALUADOR - Exportar resumen global (ANTES de :id)
+  @Get('exportar-resumen')
+  @UseGuards(RolesGuard)
+  @Roles('SUPERVISOR', 'EVALUADOR')
+  @ApiBearerAuth('JWT-auth')
+  async exportarResumen(@Res() res: Response) {
+    const { buffer, filename } = await this.excelService.exportarResumenEvaluaciones();
+    res
+      .status(HttpStatus.OK)
+      .set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': buffer.length.toString(),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      })
+      .send(buffer);
+  }
+
+  // ✅ USUARIO NORMAL - QUITAR RolesGuard
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth('JWT-auth')
@@ -67,7 +87,27 @@ export class EvaluacionesController {
     return await this.dbService.createEvaluacionWithRespuestas(data);
   }
 
-  // ✅ ✅ USUARIO NORMAL - QUITAR RolesGuard (para ver sus evaluaciones)
+
+@Get('mis-empleados')
+// ✅ SIN RolesGuard - solo JWT
+async getEvaluacionesMisEmpleados(@Req() req) {
+  const nombreJefe = req.user.empleado;
+  
+  if (!nombreJefe) {
+    throw new UnauthorizedException('Usuario no identificado');  // ✅ Ahora funciona
+  }
+  
+  return await this.dbService.getEvaluacionesByJefeNombre(nombreJefe);
+}
+
+
+
+
+
+
+
+
+  // ✅ USUARIO NORMAL - QUITAR RolesGuard (para ver sus evaluaciones)
   @Get(':id')
   @ApiBearerAuth('JWT-auth')
   async getEvaluacionCompleta(@Param('id', ParseIntPipe) id: number) {
@@ -117,3 +157,4 @@ export class EvaluacionesController {
     return { message: 'Evaluación eliminada correctamente' };
   }
 }
+

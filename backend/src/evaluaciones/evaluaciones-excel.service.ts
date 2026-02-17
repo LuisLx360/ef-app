@@ -1,4 +1,3 @@
-// src/evaluaciones/evaluaciones-excel.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Workbook, Worksheet } from 'exceljs';
 import { DbService } from '../db/db.service';
@@ -30,6 +29,9 @@ export interface EvaluacionExcelData {
 export class EvaluacionesExcelService {
   constructor(private readonly dbService: DbService) {}
 
+  /**
+   * EXPORTACIÓN INDIVIDUAL (Formato detallado con celdas combinadas)
+   */
   async exportarEvaluacion(idEvaluacion: number): Promise<{ buffer: Buffer; filename: string }> {
     const evaluacionRaw = await this.dbService.getEvaluacionCompleta(idEvaluacion);
     if (!evaluacionRaw) {
@@ -37,8 +39,7 @@ export class EvaluacionesExcelService {
     }
 
     const empleado = await this.dbService.getEmpleadoById(evaluacionRaw.idEmpleado!);
-    const nombreEmpleado =
-      empleado?.empleado?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'Sin_Empleado';
+    const nombreEmpleado = empleado?.empleado?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'Sin_Empleado';
     const fecha = evaluacionRaw.fechaEvaluacion
       ? new Date(evaluacionRaw.fechaEvaluacion).toISOString().split('T')[0]
       : '1900-01-01';
@@ -47,6 +48,7 @@ export class EvaluacionesExcelService {
       ...r,
       no_aplica: r.no_aplica ?? false
     }));
+    
     const total_aplicables = respuestasConNoAplica.filter(r => !r.no_aplica).length;
     const total_no_aplica = respuestasConNoAplica.filter(r => r.no_aplica).length;
 
@@ -77,10 +79,70 @@ export class EvaluacionesExcelService {
     return { buffer, filename };
   }
 
+  /**
+   * EXPORTACIÓN RESUMEN GENERAL (Formato tabla plana solicitado)
+   */
+  async exportarResumenEvaluaciones(): Promise<{ buffer: Buffer; filename: string }> {
+    // 1. Obtener datos desde DbService (usando la query con CASE WHEN y STRING_AGG)
+    const evaluacionesRaw = await this.dbService.getEvaluacionesResumenParaExcel();
+
+    // 2. Mapear datos al formato de tabla
+    const data = evaluacionesRaw.map((ev: any) => ({
+      operador: ev.operador || 'Sin Operador',
+      autoevaluacion: Number(ev.autoevaluacion_pct || 0) / 100,
+      estado: ev.estado?.toUpperCase() || 'PENDIENTE',
+      evaluador: ev.nombre_evaluador, // Viene como "No ha sido evaluada" desde el SQL
+      nota_evaluador: Number(ev.supervisor_pct || 0) / 100, // Viene como 0 si no hay evaluador desde SQL
+      area: ev.area || 'General',
+      categoria: ev.categoria || '',
+      proceso: ev.proceso || '',
+      fecha: ev.fecha_evaluacion
+        ? new Date(ev.fecha_evaluacion).toLocaleDateString('es-PE', { 
+            day: '2-digit', month: '2-digit', year: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+          })
+        : ''
+    }));
+
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('Resumen Evaluaciones');
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // 3. DEFINIR COLUMNAS EN EL ORDEN SOLICITADO
+    sheet.columns = [
+      { header: 'Operador', key: 'operador', width: 35 },
+      { header: 'Autoevaluación %', key: 'autoevaluacion', width: 18, style: { numFmt: '0.00%' } },
+      { header: 'Estado', key: 'estado', width: 15 },
+      { header: 'Evaluador', key: 'evaluador', width: 35 }, 
+      { header: 'Nota Evaluador %', key: 'nota_evaluador', width: 18, style: { numFmt: '0.00%' } },
+      { header: 'Área', key: 'area', width: 15 },
+      { header: 'Categoría', key: 'categoria', width: 30 },
+      { header: 'Proceso', key: 'proceso', width: 35 },
+      { header: 'Fecha', key: 'fecha', width: 20 },
+    ];
+
+    sheet.addRows(data);
+
+    // 4. Estilos de encabezado
+    const header = sheet.getRow(1);
+    header.eachCell(cell => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = this.bordesCompletos();
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return { 
+      buffer: Buffer.from(buffer), 
+      filename: `Resumen_Evaluaciones_${new Date().toISOString().slice(0, 10)}.xlsx` 
+    };
+  }
+
+  // --- MÉTODOS PRIVADOS PARA EXPORTACIÓN INDIVIDUAL ---
+
   private async generarExcel(data: EvaluacionExcelData): Promise<Buffer> {
     const workbook = new Workbook();
-
-    // Solo se crea una hoja, la correspondiente a la categoría
     const nombreHoja = this.obtenerHojaPorCategoria(data.categoria, data.area);
     const worksheet = workbook.addWorksheet(nombreHoja);
 
@@ -91,24 +153,18 @@ export class EvaluacionesExcelService {
   }
 
   private obtenerHojaPorCategoria(categoria: string, area: string): string {
-    const tipoArea = area === 'electrico' ? 'Electrica' : 'Packaging';
+    const tipoArea = area.toLowerCase() === 'electrico' ? 'Electrica' : 'Packaging';
     if (categoria.includes('L6')) return `L6 ${tipoArea}`;
     if (categoria.includes('L7')) return `L7 ${tipoArea}`;
     if (categoria.includes('L8')) return `L8 ${tipoArea}`;
-    return `L6 ${tipoArea}`; // default
+    return `Evaluacion ${tipoArea}`;
   }
 
   private configurarHojaBase(worksheet: Worksheet, data: EvaluacionExcelData) {
     worksheet.views = [{ state: 'frozen', ySplit: 6 }];
     worksheet.columns = [
-      { width: 2.5 },
-      { width: 26 },
-      { width: 85 },
-      { width: 12 },
-      { width: 10 },
-      { width: 10 },
-      { width: 12 },
-      { width: 30 },
+      { width: 2.5 }, { width: 26 }, { width: 85 }, { width: 12 },
+      { width: 10 }, { width: 10 }, { width: 12 }, { width: 30 },
     ];
     this.crearHeaderSuperior(worksheet, data);
   }
@@ -139,11 +195,7 @@ export class EvaluacionesExcelService {
     headerRow.eachCell({ includeEmpty: true }, (cell, i) => {
       if (i >= 2) {
         cell.font = { bold: true, color: { argb: 'FFFFFF' } };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF4472C4' },
-        };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
         cell.border = this.bordesCompletos();
       }
@@ -152,7 +204,6 @@ export class EvaluacionesExcelService {
 
   private llenarDatosEvaluacion(worksheet: Worksheet, data: EvaluacionExcelData) {
     let fila = 7;
-
     for (const r of data.respuestas) {
       const row = worksheet.getRow(fila);
       const valor = r.respuesta && !r.no_aplica ? 1 : 0;
@@ -163,56 +214,27 @@ export class EvaluacionesExcelService {
       row.getCell('D').value = aplicaTexto;
       row.getCell('E').value = r.peso;
       row.getCell('F').value = valor;
-
-      row.getCell('G').value = { 
-        formula: `IF(D${fila}="No",0,F${fila})`
-      };
+      row.getCell('G').value = { formula: `IF(D${fila}="No",0,F${fila})` };
       row.getCell('G').numFmt = '0%';
-
       row.getCell('H').value = r.comentarios || '';
-
-      row.getCell('D').fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: r.no_aplica ? 'FFD9D9D9' : 'FFFFFFFF' }
-      };
-
-      row.getCell('E').numFmt = '0.00';
-      row.getCell('F').numFmt = '0';
 
       row.eachCell((cell) => {
         cell.alignment = { vertical: 'top', wrapText: true };
         cell.border = this.bordesCompletos();
       });
-
       fila++;
     }
-
     this.agregarResumenManual(worksheet, fila, data);
   }
 
   private agregarResumenManual(worksheet: Worksheet, fila: number, data: EvaluacionExcelData) {
     const filaResumen = fila + 1;
     const ultimaFilaDatos = fila - 1;
-
     const resumenRow = worksheet.getRow(filaResumen);
     resumenRow.getCell('C').value = 'PROMEDIO COMPETENCIA (PONDERADO)';
-    resumenRow.getCell('C').font = { bold: true, size: 12 };
-
-    resumenRow.getCell('G').value = { 
-      formula: `IFERROR(SUM(G7:G${ultimaFilaDatos}) / COUNTIF(D7:D${ultimaFilaDatos},"Sí"), 0)`
-    };
+    resumenRow.getCell('G').value = { formula: `IFERROR(SUM(G7:G${ultimaFilaDatos}) / COUNTIF(D7:D${ultimaFilaDatos},"Sí"), 0)` };
     resumenRow.getCell('G').numFmt = '0.00%';
-    resumenRow.getCell('G').font = { bold: true, size: 14 };
-
-    resumenRow.getCell('H').value = { 
-      formula: `IF(G${filaResumen}>=0.8,"COMPETENTE","NO COMPETENTE") & CHAR(10) & "(" & COUNTIF(D7:D${ultimaFilaDatos},"Sí") & " aplicables)"`
-    };
-    resumenRow.getCell('H').font = { bold: true };
-
-    const footerRow = worksheet.getRow(filaResumen + 2);
-    footerRow.getCell('B').value = `Generado: ${new Date().toLocaleDateString()} | Autoevaluación: ${data.porcentaje_original} | Final: ${data.porcentaje_actual}`;
-    footerRow.getCell('B').font = { italic: true, size: 10, color: { argb: 'FF666666' } };
+    resumenRow.eachCell(c => c.font = { bold: true });
   }
 
   private bordesCompletos(): Partial<any> {
@@ -224,9 +246,6 @@ export class EvaluacionesExcelService {
     };
   }
 }
-
-
-
 
 
 

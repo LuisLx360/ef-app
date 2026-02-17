@@ -36,7 +36,7 @@ export default function Login() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('✅ DATA:', data);
+          /* console.log('✅ DATA:', data); */
 
           // ✅ login DEL HOOK (definido arriba)
           login(data.access_token, data.empleado);

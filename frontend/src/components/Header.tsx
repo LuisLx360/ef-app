@@ -1,8 +1,8 @@
-// Header.tsx - ✅ isActive PRECISO SIN CAMBIAR ESTILOS
+// Header.tsx - ✅ roles actualizados, botones independientes, estilo intacto
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, LogOut, Menu } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { useAuth } from '../hook/useAuth'; // ✅ hooks plural
+import { useAuth } from '../hook/useAuth';
 
 interface HeaderProps {
   isMenuOpen: boolean;
@@ -13,50 +13,57 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { user, isSupervisor, isAuthenticated, logout } = useAuth();
+  const { 
+    user, 
+    isAuthenticated, 
+    logout, 
+    canViewAdminFeatures, 
+    canViewTeam 
+  } = useAuth();
+
   const closeMenu = () => setIsMenuOpen(false);
 
   // ✅ isActive PRECISO: compara path EXACTO o hijos específicos
   const isActive = (path: string): boolean => {
     const currentPath = location.pathname;
-    
-    // Ruta exacta
+
     if (currentPath === path) return true;
-    
-    // Hijos específicos (solo para rutas con /detalle)
+
+    // Hijos específicos
     if (path === '/evaluaciones-admin' && currentPath.startsWith('/evaluaciones-admin/detalle')) {
       return true;
     }
-    
+
     return false;
   };
 
-  const showAdminLink = isSupervisor();
   const handleLogout = () => logout();
+
+  const showAdminLink = canViewAdminFeatures(); // Solo Evaluador
+  const showMiEquipo = canViewTeam();          // Supervisor o Evaluador
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          
+      <div className="max-w-8xl mx-auto px-6 sm:px-8 lg:px-10">
+        <div className="flex items-center justify-between h-20"> {/* Altura mayor para los textos */}
+
           {/* 🔹 COLUMNA 1: LOGO */}
           <div className="flex-shrink-0">
-  <div className="flex items-center p-2 -m-2 rounded-lg">
-    <img
-      src="/assets/images/inbev_logo.jpg"
-      alt="AB InBev Logo"
-      className="h-6 w-auto object-contain hover:scale-105 transition-transform"
-    />
-  </div>
-</div>
+            <div className="flex items-center p-2 -m-2 rounded-lg">
+              <img
+                src="/assets/images/inbev_logo.jpg"
+                alt="AB InBev Logo"
+                className="h-8 w-auto object-contain hover:scale-105 transition-transform"
+              />
+            </div>
+          </div>
 
           {/* 🔹 COLUMNA 2: NAVEGACIÓN - CENTRO */}
           <div className="hidden md:flex flex-1 justify-center px-8 mx-8">
-            <nav className="flex items-center gap-8">
-              {/* ✅ Nueva Evaluación - SOLO /evaluaciones */}
+            <nav className="flex items-center gap-6">
               <button
                 onClick={() => navigate('/evaluaciones')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                   isActive('/evaluaciones') 
                     ? 'text-blue-600 bg-blue-50 border border-blue-200 shadow-sm' 
                     : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
@@ -65,25 +72,36 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
                 Nueva Evaluación
               </button>
 
-              {/* ✅ Mis evaluaciones - SOLO /mis-evaluaciones */}
               <button
                 onClick={() => navigate('/mis-evaluaciones')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
                   isActive('/mis-evaluaciones') 
                     ? 'text-blue-600 bg-blue-50 border border-blue-200 shadow-sm' 
                     : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
-                Mis evaluaciones
+                Mis Evaluaciones
               </button>
 
-              {/* ✅ Admin - SOLO /evaluaciones-admin y /detalle */}
+              {showMiEquipo && (
+                <button
+                  onClick={() => navigate('/mi-equipo')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    isActive('/mi-equipo')
+                      ? 'text-blue-600 bg-blue-50 border border-blue-200 shadow-sm'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  Mi Equipo
+                </button>
+              )}
+
               {showAdminLink && (
                 <button
                   onClick={() => navigate('/evaluaciones-admin')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                    isActive('/evaluaciones-admin') 
-                      ? 'text-blue-600 bg-blue-50 border border-blue-200 shadow-sm' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    isActive('/evaluaciones-admin')
+                      ? 'text-blue-600 bg-blue-50 border border-blue-200 shadow-sm'
                       : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
@@ -102,7 +120,7 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-semibold text-gray-900 max-w-[140px] truncate block">
+                    <span className="text-sm font-semibold text-gray-900 max-w-[160px] truncate block">
                       {user?.nombre || 'Usuario'}
                     </span>
                   </div>
@@ -120,7 +138,7 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
               </>
             ) : (
               <Button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/login')}
                 variant="outline"
                 size="sm"
                 className="gap-2 h-10 px-4 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 shadow-sm"
@@ -140,54 +158,50 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
         </div>
       </div>
 
-      {/* Mobile Menu - MISMA LÓGICA */}
+      {/* Mobile Menu */}
       {isMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-200 shadow-2xl">
-          <div className="max-w-6xl mx-auto px-4 py-6 space-y-2">
+          <div className="max-w-7xl mx-auto px-6 py-6 space-y-2">
             <button
-              onClick={() => {
-                navigate('/evaluaciones');
-                closeMenu();
-              }}
+              onClick={() => { navigate('/evaluaciones'); closeMenu(); }}
               className={`w-full text-left p-4 rounded-xl transition-all shadow-sm ${
-                isActive('/evaluaciones') 
-                  ? 'bg-blue-600 text-white shadow-lg' 
-                  : 'text-gray-700 hover:bg-gray-100'
+                isActive('/evaluaciones') ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
               Nueva Evaluación
             </button>
-            
+
             <button
-              onClick={() => {
-                navigate('/mis-evaluaciones');
-                closeMenu();
-              }}
+              onClick={() => { navigate('/mis-evaluaciones'); closeMenu(); }}
               className={`w-full text-left p-4 rounded-xl transition-all shadow-sm ${
-                isActive('/mis-evaluaciones') 
-                  ? 'bg-blue-600 text-white shadow-lg' 
-                  : 'text-gray-700 hover:bg-gray-100'
+                isActive('/mis-evaluaciones') ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
               }`}
             >
-              Mis evaluaciones
+              Mis Evaluaciones
             </button>
-            
+
+            {showMiEquipo && (
+              <button
+                onClick={() => { navigate('/mi-equipo'); closeMenu(); }}
+                className={`w-full text-left p-4 rounded-xl transition-all shadow-sm ${
+                  isActive('/mi-equipo') ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Mi Equipo
+              </button>
+            )}
+
             {showAdminLink && (
               <button
-                onClick={() => {
-                  navigate('/evaluaciones-admin');
-                  closeMenu();
-                }}
+                onClick={() => { navigate('/evaluaciones-admin'); closeMenu(); }}
                 className={`w-full text-left p-4 rounded-xl transition-all shadow-sm ${
-                  isActive('/evaluaciones-admin') 
-                    ? 'bg-blue-600 text-white shadow-lg' 
-                    : 'text-gray-700 hover:bg-gray-100'
+                  isActive('/evaluaciones-admin') ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 Evaluaciones Admin
               </button>
             )}
-            
+
             {isAuthenticated && (
               <Button
                 onClick={handleLogout}

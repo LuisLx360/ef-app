@@ -26,9 +26,9 @@ async onModuleInit() {
     try {
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL!,
-        ssl: { 
-          rejectUnauthorized: false  // ← Supabase necesita esto
-        },
+        /* ssl: { 
+          rejectUnauthorized: false  // ← Supabase necesita esto ----- No aplica para local
+        }, */
         connectionTimeoutMillis: 30000,  // ↑ Más tiempo para Supabase
         idleTimeoutMillis: 60000,
         max: 5,  // Pool más pequeño
@@ -89,6 +89,208 @@ async onModuleInit() {
 
     return ((pesoAprobado / pesoTotal) * 100).toFixed(2);
   }
+
+    /**
+   * Devuelve todas las evaluaciones con sus respuestas + pesos,
+   * para calcular el porcentaje ponderado por evaluación.
+   */
+    /**
+   * Devuelve todas las evaluaciones con sus respuestas + pesos,
+   * para calcular el porcentaje ponderado por evaluación.
+   */
+  async getEvaluacionesConRespuestasParaResumen() {
+  // 1. Obtener TODAS las evaluaciones con empleado y categoría
+  const evaluacionesConTodo = await this.db
+    .select({
+      idEvaluacion: evaluaciones.idEvaluacion,
+      fechaEvaluacion: evaluaciones.fechaEvaluacion,
+      evaluador: evaluaciones.evaluador,
+      idEmpleado: evaluaciones.idEmpleado,
+      nombreEmpleado: empleados.empleado,
+      areaEmpleado: empleados.area,
+      categoria: categorias.nombre,
+      areaCategoria: categorias.area,
+    })
+    .from(evaluaciones)
+    .leftJoin(empleados, eq(evaluaciones.idEmpleado, empleados.id_empleado))
+    .leftJoin(categorias, eq(evaluaciones.idCategoria, categorias.id_categoria));
+
+  if (!evaluacionesConTodo.length) return [];
+
+  // 2. Query respuestas usando bucle (evita el problema del ANY)
+  const todasRespuestas: any[] = [];
+  for (const ev of evaluacionesConTodo) {
+    const respuestasEv = await this.db
+      .select({
+        idEvaluacion: respuestas.idEvaluacion,
+        idPregunta: respuestas.idPregunta,
+        respuesta: respuestas.respuesta,
+        no_aplica: respuestas.no_aplica,
+        peso: preguntas.peso,
+        procesoNombre: procesos.nombre,
+      })
+      .from(respuestas)
+      .leftJoin(preguntas, eq(preguntas.id_pregunta, respuestas.idPregunta))
+      .leftJoin(procesos, eq(procesos.id_proceso, preguntas.id_proceso))
+      .where(eq(respuestas.idEvaluacion, ev.idEvaluacion));
+    
+    todasRespuestas.push(...respuestasEv);
+  }
+
+  // 3. Agrupar respuestas por evaluación
+  const respuestasPorEval = new Map<number, any[]>();
+  for (const r of todasRespuestas) {
+    if (!r.idEvaluacion) continue;
+    const arr = respuestasPorEval.get(r.idEvaluacion) ?? [];
+    arr.push(r);
+    respuestasPorEval.set(r.idEvaluacion, arr);
+  }
+
+  // 4. Calcular porcentajes
+  return evaluacionesConTodo.map((ev) => {
+    const respuestasEval = respuestasPorEval.get(ev.idEvaluacion) ?? [];
+    
+    const respuestasNormalizadas = respuestasEval.map((r: any) => ({
+      respuesta: Boolean(r.respuesta),
+      no_aplica: Boolean(r.no_aplica ?? false),
+      peso: r.peso ? Number(r.peso) : 1,
+    }));
+
+    const porcentajeStr = this.calcularPorcentajeConPesos(respuestasNormalizadas);
+    const porcentaje = Number(porcentajeStr || 0);
+
+    return {
+      idEvaluacion: ev.idEvaluacion,
+      fechaEvaluacion: ev.fechaEvaluacion,
+      evaluador: ev.evaluador ?? 'Sin evaluador',
+      nombreEmpleado: ev.nombreEmpleado ?? 'Sin empleado',
+      areaEmpleado: ev.areaEmpleado ?? ev.areaCategoria ?? 'N/A',
+      categoria: ev.categoria ?? 'Sin categoría',
+      proceso: respuestasEval[0]?.procesoNombre ?? null,
+      porcentaje,
+    };
+  });
+}
+
+
+// TEMPORAL - En db.service.ts
+async getEvaluacionesResumenParaExcel() {
+    const query = sql.raw(`
+      SELECT 
+        e.id_evaluacion,
+        em.empleado AS operador,
+        
+        -- 1. Autoevaluación % (Siempre es el porcentaje original)
+        COALESCE(he_original.porcentaje, 0) AS autoevaluacion_pct,
+        
+        -- 2. Estado
+        e.estado,
+
+        -- 3. Lógica para el Nombre del Evaluador
+        CASE 
+            WHEN e.evaluador = 'Autoevaluación' OR e.evaluador IS NULL THEN 'No ha sido evaluada'
+            ELSE e.evaluador 
+        END AS nombre_evaluador,
+
+        -- 4. Lógica para Nota Evaluador % (Si es Autoevaluación, mostramos 0, sino la última nota)
+        CASE 
+            WHEN e.evaluador = 'Autoevaluación' THEN 0
+            ELSE COALESCE(he_ultimo.porcentaje, 0)
+        END AS supervisor_pct,
+
+        c.area,
+        c.nombre AS categoria,
+        STRING_AGG(DISTINCT p.nombre, ', ') AS proceso,
+        e.fecha_evaluacion
+
+      FROM evaluaciones e
+      LEFT JOIN empleados em ON em.id_empleado = e.id_empleado
+      LEFT JOIN categorias c ON c.id_categoria = e.id_categoria
+      
+      -- Porcentaje original (Autoevaluación)
+      LEFT JOIN historial_evaluaciones he_original 
+        ON he_original.id_evaluacion = e.id_evaluacion 
+        AND he_original.es_original = TRUE
+      
+      -- Último porcentaje
+      LEFT JOIN (
+        SELECT DISTINCT ON (id_evaluacion) *
+        FROM historial_evaluaciones
+        ORDER BY id_evaluacion, fecha_modificacion DESC
+      ) he_ultimo 
+        ON he_ultimo.id_evaluacion = e.id_evaluacion
+      
+      LEFT JOIN respuestas r ON r.id_evaluacion = e.id_evaluacion
+      LEFT JOIN preguntas q ON q.id_pregunta = r.id_pregunta
+      LEFT JOIN procesos p ON p.id_proceso = q.id_proceso
+
+      GROUP BY 
+        e.id_evaluacion, 
+        em.empleado, 
+        he_original.porcentaje, 
+        he_ultimo.porcentaje, 
+        e.estado, 
+        e.evaluador, 
+        c.nombre, 
+        c.area, 
+        e.fecha_evaluacion
+      ORDER BY e.fecha_evaluacion DESC;
+    `);
+
+    const result = await this.db.execute(query);
+    return result.rows;
+  }
+
+
+
+
+
+// db.service.ts - REEMPLAZAR tu método actual
+// db.service.ts - REEMPLAZAR completamente tu getEvaluacionesByJefeNombre
+async getEvaluacionesByJefeNombre(nombreJefe: string) {
+  if (!nombreJefe) return [];
+
+  const evaluacionesConTodo = await this.db
+    .select({
+      idEvaluacion: evaluaciones.idEvaluacion,
+      fechaEvaluacion: evaluaciones.fechaEvaluacion,
+      estado: evaluaciones.estado,
+      idEmpleado: evaluaciones.idEmpleado,
+      nombreEmpleado: empleados.empleado,
+      areaEmpleado: empleados.area,
+      categoria: categorias.nombre,
+      equipoAutonomo: empleados.equipo_autonomo,
+      porcentaje: historial_evaluaciones.porcentaje,
+    })
+    .from(evaluaciones)
+    .leftJoin(empleados, eq(evaluaciones.idEmpleado, empleados.id_empleado))
+    .leftJoin(categorias, eq(evaluaciones.idCategoria, categorias.id_categoria))
+    .leftJoin(historial_evaluaciones, and(
+      eq(historial_evaluaciones.idEvaluacion, evaluaciones.idEvaluacion),
+      sql`${historial_evaluaciones.esOriginal} = true`  // ✅ CAMBIO AQUÍ
+    ))
+    .where(eq(empleados.jefe_inmediato, nombreJefe))
+    .orderBy(desc(evaluaciones.fechaEvaluacion));
+
+  return evaluacionesConTodo.map(ev => ({
+    idEvaluacion: ev.idEvaluacion,
+    fechaEvaluacion: ev.fechaEvaluacion,
+    estado: ev.estado ?? 'pendiente',
+    nombreEmpleado: ev.nombreEmpleado ?? 'Sin empleado',
+    categoria: ev.categoria ?? 'Sin categoría',
+  }));
+}
+
+
+
+
+
+
+
+
+
+
+
 
   async getProceso(id_proceso: number) {
     const result = await this.db

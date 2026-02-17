@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DbService } from '../db/db.service';
+import { categorias } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class CategoriasService {
@@ -8,6 +10,8 @@ export class CategoriasService {
   async findAll() {
     return this.db.getCategorias();
   }
+
+  
 
   async findOne(id: number) {
     const result = await this.db.getCategoria(id);

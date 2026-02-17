@@ -288,157 +288,158 @@ export default function Evaluation() {
   const totalCount = applicableQuestions.length || 1;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header SIN CAMBIOS */}
-        <Card className="mb-8 shadow-lg border-0">
-          <CardContent className="p-8">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-blue-100 rounded-xl flex-shrink-0">
-                <CheckCircle2 className="size-8 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Autoevaluación de Empleado</h1>
-                <p className="text-lg text-gray-600">
-                  {user.nombre || "Empleado"} - {user.nivel_acceso || "N/A"} - {user.area || "N/A"}
+  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-4xl mx-auto">
+      {/* Header SIN CAMBIOS */}
+      <Card className="mb-8 shadow-lg border-0">
+        <CardContent className="p-8">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-blue-100 rounded-xl flex-shrink-0">
+              <CheckCircle2 className="size-8 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Autoevaluación de Empleado</h1>
+              <p className="text-lg text-gray-600">
+                {user.nombre || "Empleado"} - {user.nivel_acceso || "N/A"} - {user.area || "N/A"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Guía Técnica SIN CAMBIOS */}
+      <Card className="mb-6 shadow-sm">
+        <CardContent className="p-6">
+          <Label className="text-base font-semibold text-gray-900 mb-4 block">
+            📋 Guía Técnica
+          </Label>
+          <SelectRadix
+            value={selectedGuideId.toString()}
+            onValueChange={handleGuideChange}
+            placeholder="Selecciona una guía técnica..."
+            options={guidesOptions}
+            className="w-full"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Proceso - SOLO para packaging SIN CAMBIOS */}
+      {!isElectrica && selectedGuideId > 0 && procesosOptions.length > 0 && (
+        <Card className="mb-8 shadow-sm">
+          <CardContent className="p-6">
+            <Label className="text-lg font-semibold text-gray-900 mb-4 block">
+              <Package className="inline w-5 h-5 mr-2" />
+              Proceso
+            </Label>
+            <SelectRadix
+              value={selectedProcessId.toString()}
+              onValueChange={handleProcessChange}
+              placeholder="Selecciona un proceso..."
+              options={procesosOptions}
+              className="w-full"
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Mensaje para guías eléctricas SIN CAMBIOS */}
+      {isElectrica && selectedGuideId > 0 && !questions.length && (
+        <Card className="mb-8 shadow-sm border-blue-200 bg-blue-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 text-blue-800">
+              <Zap className="w-6 h-6" />
+              <div>
+                <h3 className="font-semibold">⚡ Evaluación Eléctrica Directa</h3>
+                <p className="text-sm mt-1">
+                  Cargando preguntas de la guía {currentGuide?.nombre}...
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Guía Técnica SIN CAMBIOS */}
-        <Card className="mb-6 shadow-sm">
-          <CardContent className="p-6">
-            <Label className="text-base font-semibold text-gray-900 mb-4 block">
-              📋 Guía Técnica
-            </Label>
-            <SelectRadix
-              value={selectedGuideId.toString()}
-              onValueChange={handleGuideChange}
-              placeholder="Selecciona una guía técnica..."
-              options={guidesOptions}
-              className="w-full"
-            />
+      {/* Placeholder si falta selección SIN CAMBIOS */}
+      {selectedGuideId === 0 && (
+        <Card className="mb-8 shadow-sm border-2 border-dashed border-gray-200">
+          <CardContent className="p-8 text-center">
+            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Selecciona tu guía</h3>
+            <p className="text-gray-500">Elige una guía técnica para comenzar la evaluación</p>
           </CardContent>
         </Card>
+      )}
 
-        {/* Proceso - SOLO para packaging SIN CAMBIOS */}
-        {!isElectrica && selectedGuideId > 0 && procesosOptions.length > 0 && (
-          <Card className="mb-8 shadow-sm">
-            <CardContent className="p-6">
-              <Label className="text-lg font-semibold text-gray-900 mb-4 block">
-                <Package className="inline w-5 h-5 mr-2" />
-                Proceso
-              </Label>
-              <SelectRadix
-                value={selectedProcessId.toString()}
-                onValueChange={handleProcessChange}
-                placeholder="Selecciona un proceso..."
-                options={procesosOptions}
-                className="w-full"
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Mensaje para guías eléctricas - CORREGIDO totalCount */}
-        {isElectrica && selectedGuideId > 0 && !questions.length && (
-          <Card className="mb-8 shadow-sm border-blue-200 bg-blue-50">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 text-blue-800">
-                <Zap className="w-6 h-6" />
-                <div>
-                  <h3 className="font-semibold">⚡ Evaluación Eléctrica Directa</h3>
-                  <p className="text-sm mt-1">
-                    Cargando preguntas de la guía {currentGuide?.nombre}...
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Placeholder si falta selección SIN CAMBIOS */}
-        {selectedGuideId === 0 && (
-          <Card className="mb-8 shadow-sm border-2 border-dashed border-gray-200">
-            <CardContent className="p-8 text-center">
-              <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Selecciona tu guía</h3>
-              <p className="text-gray-500">Elige una guía técnica para comenzar la evaluación</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Progreso SIN CAMBIOS - YA USA completedCount/totalCount filtrados */}
-        {questions.length > 0 && (
-          <Card className="mb-8 shadow-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <Label className="text-lg font-semibold text-gray-900">
-                  📊 Progreso {isElectrica ? '(Eléctrica)' : '(Packaging)'} 
-                  <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                    {questions.filter(q => q.noAplica).length} No Aplica
-                  </span>
-                </Label>
-                <span className="text-sm font-medium text-gray-700">
-                  {completedCount}/{totalCount}
-                </span>
-              </div>
-              <Progress value={(completedCount / totalCount) * 100} className="h-3" />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ProcessSection CON onNoAplicaToggle ✅ */}
-        {questions.length > 0 && (
-          <ProcessSection
-            title={isElectrica ? currentGuide?.nombre || "Evaluación" : currentProcess?.nombre || "Proceso"}
-            questions={questions}
-            onToggleQuestion={handleToggleQuestion}
-            onNoAplicaToggle={handleNoAplicaToggle}  // ✅ NUEVO
-          />
-        )}
-
-        {/* Observaciones SIN CAMBIOS */}
+      {/* Progreso SIN CAMBIOS */}
+      {questions.length > 0 && (
         <Card className="mb-8 shadow-sm">
-          <CardContent className="p-6 md:p-8">
-            <Label className="text-lg font-semibold text-gray-900 mb-4 block">💬 Observaciones</Label>
-            <Textarea
-              value={observations}
-              onChange={(e) => setObservations(e.target.value)}
-              placeholder="Comentarios adicionales sobre la evaluación (opcional)..."
-              className="min-h-[120px]"
-              disabled={questions.length === 0}
-            />
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <Label className="text-lg font-semibold text-gray-900">
+                📊 Progreso {isElectrica ? '(Eléctrica)' : '(Packaging)'} 
+                <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  {questions.filter(q => q.noAplica).length} No Aplica
+                </span>
+              </Label>
+              <span className="text-sm font-medium text-gray-700">
+                {completedCount}/{totalCount}
+              </span>
+            </div>
+            <Progress value={(completedCount / totalCount) * 100} className="h-3" />
           </CardContent>
         </Card>
+      )}
 
-        {/* Submit - MEJORADO */}
-        <div className="flex justify-end">
-          {submitted ? (
-            <div className="flex items-center gap-3 bg-green-50 border-2 border-green-200 text-green-800 px-8 py-4 rounded-xl font-semibold shadow-lg animate-pulse">
-              <CheckCircle2 className="size-6" />
-              ¡Evaluación enviada exitosamente!
-            </div>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              disabled={loading || questions.length === 0 || selectedGuideId === 0}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-10 py-4 rounded-xl text-lg font-semibold shadow-lg h-14 min-w-[220px] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? (
-                <>
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block" />
-                  Enviando...
-                </>
-              ) : (
-                `📤 Enviar ${isElectrica ? 'Evaluación Eléctrica' : 'Evaluación'} (${completedCount}/${totalCount})`
-              )}
-            </Button>
-          )}
-        </div>
+      {/* ProcessSection RESPONSIVE - Móvil: botones arriba, info abajo */}
+      {questions.length > 0 && (
+        <ProcessSection
+          title={isElectrica ? currentGuide?.nombre || "Evaluación" : currentProcess?.nombre || "Proceso"}
+          questions={questions}
+          onToggleQuestion={handleToggleQuestion}
+          onNoAplicaToggle={handleNoAplicaToggle}
+        />
+      )}
+
+      {/* Observaciones SIN CAMBIOS */}
+      <Card className="mb-8 shadow-sm">
+        <CardContent className="p-6 md:p-8">
+          <Label className="text-lg font-semibold text-gray-900 mb-4 block">💬 Observaciones</Label>
+          <Textarea
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            placeholder="Comentarios adicionales sobre la evaluación (opcional)..."
+            className="min-h-[120px]"
+            disabled={questions.length === 0}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Submit SIN CAMBIOS */}
+      <div className="flex justify-end">
+        {submitted ? (
+          <div className="flex items-center gap-3 bg-green-50 border-2 border-green-200 text-green-800 px-8 py-4 rounded-xl font-semibold shadow-lg animate-pulse">
+            <CheckCircle2 className="size-6" />
+            ¡Evaluación enviada exitosamente!
+          </div>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || questions.length === 0 || selectedGuideId === 0}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-10 py-4 rounded-xl text-lg font-semibold shadow-lg h-14 min-w-[220px] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {loading ? (
+              <>
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block" />
+                Enviando...
+              </>
+            ) : (
+              `📤 Enviar ${isElectrica ? 'Evaluación Eléctrica' : 'Evaluación'} (${completedCount}/${totalCount})`
+            )}
+          </Button>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
+
 }

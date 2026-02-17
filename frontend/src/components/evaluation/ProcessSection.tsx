@@ -1,8 +1,8 @@
+// ProcessSection.tsx - MANTENIENDO DISEÑO ORIGINAL + cambio mínimo móvil
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Progress } from "../ui/progress";
 import { QuestionItem } from "./QuestionItem";
 
-// ✅ Interfaz YA ACTUALIZADA ✓
 export interface Question {
   id_pregunta: number;
   titulo: string;
@@ -15,7 +15,7 @@ interface ProcessSectionProps {
   title: string;
   questions: Question[];
   onToggleQuestion: (questionId: number) => void;
-  onNoAplicaToggle?: (questionId: number) => void;  // ✅ NUEVO PROP
+  onNoAplicaToggle?: (questionId: number) => void;
   readOnly?: boolean;
 }
 
@@ -23,9 +23,8 @@ export function ProcessSection({
   title,
   questions,
   onToggleQuestion,
-  onNoAplicaToggle,  // ✅ NUEVO
+  onNoAplicaToggle,
 }: ProcessSectionProps) {
-  // 🔥 CÁLCULO ACTUALIZADO con "No Aplica"
   const applicableQuestions = questions.filter((q) => !q.noAplica);
   const completedCount = applicableQuestions.filter((q) => q.respuesta).length;
   const totalCount = applicableQuestions.length;
@@ -37,13 +36,14 @@ export function ProcessSection({
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg text-blue-600">{title}</CardTitle>
           <span className="text-sm text-gray-600">
-            {completedCount} de {totalCount} {/* Ya filtra No Aplica */}
+            {completedCount} de {totalCount}
           </span>
         </div>
         <Progress value={progressPercentage} className="mt-3 h-2" />
       </CardHeader>
-      <CardContent>
-        <div className="space-y-1">
+      <CardContent className="p-4 sm:p-6">
+        {/* ÚNICO CAMBIO: Padding responsive + espaciado móvil */}
+        <div className="space-y-3 sm:space-y-4">
           {questions.map((question) => (
             <QuestionItem
               key={question.id_pregunta}
@@ -51,9 +51,9 @@ export function ProcessSection({
               question={question.titulo}
               weight={question.peso}
               completed={question.respuesta}
-              noAplica={question.noAplica}      // ✅ NUEVO PROP
+              noAplica={question.noAplica}
               onToggle={onToggleQuestion}
-              onNoAplicaToggle={onNoAplicaToggle}  // ✅ NUEVO PROP
+              onNoAplicaToggle={onNoAplicaToggle}
             />
           ))}
         </div>
@@ -61,3 +61,4 @@ export function ProcessSection({
     </Card>
   );
 }
+

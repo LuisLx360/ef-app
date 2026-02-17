@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 interface User {
   id_empleado: string;
   nombre: string;
-  nivel_acceso: 'OPERADOR' | 'SUPERVISOR' | string;
+  nivel_acceso: 'OPERADOR' | 'SUPERVISOR' | 'EVALUADOR';
   area: string;
 }
 
@@ -52,23 +52,34 @@ export function useAuth() {
     navigate('/login', { replace: true });
   };
 
-  // ✅ FUNCIÓN hasRole ADAPTADA A TU BACKEND
-  const hasRole = (requiredNivel: string): boolean => {
-    return user?.nivel_acceso === requiredNivel;
+  // Nueva lógica de roles
+  const isSupervisor = () => user?.nivel_acceso === 'SUPERVISOR';
+  const isEvaluador = () => user?.nivel_acceso === 'EVALUADOR';
+  const isOperador = () => user?.nivel_acceso === 'OPERADOR';
+
+  // Función general para permisos: si quieres restringir a X roles
+  const hasRole = (...roles: string[]) => {
+    if (!user) return false;
+    return roles.includes(user.nivel_acceso);
   };
 
-  const isSupervisor = () => user?.nivel_acceso === 'SUPERVISOR';
-  const isOperador = () => user?.nivel_acceso === 'OPERADOR';
+  // Permisos para cada tipo de acceso en la app
+  const canViewAdminFeatures = () => isEvaluador(); // Evaluador = admin
+  const canViewTeam = () => isSupervisor() || isEvaluador(); // Ambos pueden ver su equipo
 
   return {
     user,
     loading,
     login,
     logout,
-    hasRole,        // ✅ AHORA SÍ EXISTE
+    hasRole,
     isSupervisor,
+    isEvaluador,
     isOperador,
+    canViewAdminFeatures,
+    canViewTeam,
     isAuthenticated: !!user,
     nivel_acceso: user?.nivel_acceso,
   };
 }
+
