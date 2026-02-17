@@ -26,9 +26,9 @@ async onModuleInit() {
     try {
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL!,
-        /* ssl: { 
+         ssl: { 
           rejectUnauthorized: false  // ← Supabase necesita esto ----- No aplica para local
-        }, */
+        }, 
         connectionTimeoutMillis: 30000,  // ↑ Más tiempo para Supabase
         idleTimeoutMillis: 60000,
         max: 5,  // Pool más pequeño
