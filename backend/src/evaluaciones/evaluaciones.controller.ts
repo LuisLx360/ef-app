@@ -65,18 +65,23 @@ export class EvaluacionesController {
   @Roles('SUPERVISOR', 'EVALUADOR')
   @ApiBearerAuth('JWT-auth')
   async exportarResumen(@Res() res: Response) {
-    const { buffer, filename } = await this.excelService.exportarResumenEvaluaciones();
-    res
-      .status(HttpStatus.OK)
-      .set({
+    try {
+      const { buffer, filename } = await this.excelService.exportarResumenEvaluaciones();
+      
+      // Aseguramos los headers
+      res.status(HttpStatus.OK).set({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Content-Length': buffer.length.toString(),
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      })
-      .send(buffer);
+      });
+
+      // Usar .end() para enviar buffers binarios es más limpio
+      res.end(buffer); 
+    } catch (error) {
+      console.error('Error en exportación:', error);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: 'Error al generar Excel' });
+    }
   }
 
   // ✅ USUARIO NORMAL - QUITAR RolesGuard

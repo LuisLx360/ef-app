@@ -660,13 +660,13 @@ async getEvaluacionesByJefeNombre(nombreJefe: string) {
 
       const porcentajeNuevo = this.calcularPorcentajeConPesos(respuestasNormalizadas);
 
-      console.log('🔍=== DEBUG guardarCambiosEvaluador ===');
+      /* console.log('🔍=== DEBUG guardarCambiosEvaluador ===');
       console.log('📥 CAMBIOS:', JSON.stringify(respuestasData, null, 2));
       console.log('💰 TODAS (6):', respuestasNormalizadas.length);
       console.log('💰 APLICABLES:', respuestasNormalizadas.filter(r => !r.noAplica).length);
       console.log('📊 NUEVO PORCENTAJE:', porcentajeNuevo);
       console.log('🔍=== FIN DEBUG ===');
-
+ */
       for (const cambio of respuestasData) {
         await tx.update(respuestas)
           .set({

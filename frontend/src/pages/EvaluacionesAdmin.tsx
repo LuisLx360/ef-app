@@ -49,57 +49,54 @@ export default function EvaluacionesAdmin() {
   };
 
   // ✅ NUEVA FUNCIÓN: Exportar resumen Excel
-  const handleExportResumen = async () => {
-    try {
-      setExportLoading(true);
-      
-      // Obtener token del localStorage (ajusta según tu auth)
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        alert('❌ Sesión expirada. Por favor, inicia sesión nuevamente.');
-        return;
-      }
+  // 1. Asegúrate de tener la URL base de tu API
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-      const response = await fetch('/api/evaluaciones/exportar-resumen', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          // Importante: NO usar 'Content-Type' para archivos binarios
-        },
-      });
+const handleExportResumen = async () => {
+  try {
+    setExportLoading(true);
+    const token = localStorage.getItem('token');
+    
+    // 2. USA LA URL ABSOLUTA (API_URL + ruta)
+const response = await fetch(`${API_URL}/evaluaciones/exportar-resumen`, {
+      method: 'GET',
+      headers: { 
+        'Authorization': `Bearer ${token}`
+        // Quita cualquier header de Content-Type aquí
+      },
+    });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error ${response.status}: ${errorText}`);
-      }
-
-      // Crear blob y descargar
-      const blob = await response.blob();
-      const contentType = response.headers.get('content-type') || '';
-      const filename = `Resumen_Evaluaciones_${new Date().toISOString().slice(0, 10)}.xlsx`;
-      
-      // Crear URL temporal y link de descarga
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      
-      // Limpiar
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      console.log('✅ Excel descargado:', filename);
-      
-    } catch (error) {
-      console.error('❌ Error exportando Excel:', error);
-      alert('❌ Error al exportar el resumen. Verifica que tengas permisos de SUPERVISOR/EVALUADOR.');
-    } finally {
-      setExportLoading(false);
+    if (!response.ok) {
+       const errorData = await response.text();
+       console.error("Error del servidor:", errorData);
+       throw new Error("No se pudo descargar el archivo");
     }
-  };
+
+    const blob = await response.blob();
+    
+    // VERIFICACIÓN DE SEGURIDAD:
+    if (blob.type.includes('html')) {
+        console.error("❌ Error: Recibimos HTML en lugar de Excel. Revisa la URL de la API.");
+        alert("Error de configuración: El servidor respondió con una página web en lugar de un archivo.");
+        return;
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Resumen_Evaluaciones_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+  } catch (error) {
+    console.error('❌ Error exportando:', error);
+    alert('Error al exportar el resumen.');
+  } finally {
+    setExportLoading(false);
+  }
+};
 
   const filteredEvaluations = evaluations.filter((evaluation) => {
     if (filter === "all") return true;
