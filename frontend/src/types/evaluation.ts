@@ -2,8 +2,10 @@ export interface EvaluationApi {
   idEvaluacion: number;
   fechaEvaluacion: string;
   categoria: string;
-  estado: 'pendiente' | 'en_revision' | 'aprobada' | 'reprobada'; // ✅ NUEVO
+  estado: 'pendiente' | 'en_revision' | 'aprobada' | 'reprobada';
+  nombreProceso?: string;   // 👈 NUEVO (mismo nombre que en el JSON)
 }
+
 
 export type EvaluationStatus = 
   | 'all'
@@ -18,22 +20,26 @@ export interface EvaluationUI {
   date: string;
   status: EvaluationStatus;
   userName?: string;
+  processName?: string;     // 👈 NUEVO
 }
 
 const statusMap: Record<EvaluationApi['estado'], EvaluationStatus> = {
   pendiente: 'pending-review',
   en_revision: 'in-review',
   aprobada: 'approved',
-  reprobada: 'failed', // ✅ NUEVO
+  reprobada: 'failed',
 };
 
-export function mapEvaluation(api: EvaluationApi & { nombreEmpleado?: string }): EvaluationUI {
+export function mapEvaluation(
+  api: EvaluationApi & { nombreEmpleado?: string }
+): EvaluationUI {
   return {
     id: api.idEvaluacion,
     name: api.categoria,
     date: api.fechaEvaluacion,
     status: statusMap[api.estado],
     userName: api.nombreEmpleado,
+    processName: api.nombreProceso ?? undefined, // 👈 aquí
   };
 }
 

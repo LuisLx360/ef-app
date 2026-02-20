@@ -24,7 +24,7 @@ export class JwtAuthGuard implements CanActivate {
         nivel_acceso: payload.nivel_acceso
       };
       
-      console.log('✅ req.user:', request.user); // DEBUG temporal
+      
     } catch {
       throw new UnauthorizedException('Token inválido');
     }

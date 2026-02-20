@@ -83,61 +83,66 @@ export class EvaluacionesExcelService {
    * EXPORTACIÓN RESUMEN GENERAL (Formato tabla plana solicitado)
    */
   async exportarResumenEvaluaciones(): Promise<{ buffer: Buffer; filename: string }> {
-    // 1. Obtener datos desde DbService (usando la query con CASE WHEN y STRING_AGG)
-    const evaluacionesRaw = await this.dbService.getEvaluacionesResumenParaExcel();
+  // 1. Obtener datos desde DbService
+  const evaluacionesRaw = await this.dbService.getEvaluacionesResumenParaExcel();
 
-    // 2. Mapear datos al formato de tabla
-    const data = evaluacionesRaw.map((ev: any) => ({
-      operador: ev.operador || 'Sin Operador',
-      autoevaluacion: Number(ev.autoevaluacion_pct || 0) / 100,
-      estado: ev.estado?.toUpperCase() || 'PENDIENTE',
-      evaluador: ev.nombre_evaluador, // Viene como "No ha sido evaluada" desde el SQL
-      nota_evaluador: Number(ev.supervisor_pct || 0) / 100, // Viene como 0 si no hay evaluador desde SQL
-      area: ev.area || 'General',
-      categoria: ev.categoria || '',
-      proceso: ev.proceso || '',
-      fecha: ev.fecha_evaluacion
-        ? new Date(ev.fecha_evaluacion).toLocaleDateString('es-PE', { 
-            day: '2-digit', month: '2-digit', year: 'numeric', 
-            hour: '2-digit', minute: '2-digit' 
-          })
-        : ''
-    }));
+  // 2. Mapear datos al formato de tabla (AGREGAR ID y equipo)
+  const data = evaluacionesRaw.map((ev: any) => ({
+    id_empleado: ev.id_empleado || '',           // 👈 NUEVO
+    equipo_autonomo: ev.equipo_autonomo || '',   // 👈 NUEVO
+    operador: ev.operador || 'Sin Operador',
+    autoevaluacion: Number(ev.autoevaluacion_pct || 0) / 100,
+    estado: ev.estado?.toUpperCase() || 'PENDIENTE',
+    evaluador: ev.nombre_evaluador,
+    nota_evaluador: Number(ev.supervisor_pct || 0) / 100,
+    area: ev.area || 'General',
+    categoria: ev.categoria || '',
+    proceso: ev.proceso || '',
+    fecha: ev.fecha_evaluacion
+      ? new Date(ev.fecha_evaluacion).toLocaleDateString('es-PE', { 
+          day: '2-digit', month: '2-digit', year: 'numeric', 
+          hour: '2-digit', minute: '2-digit' 
+        })
+      : ''
+  }));
 
-    const workbook = new Workbook();
-    const sheet = workbook.addWorksheet('Resumen Evaluaciones');
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  const workbook = new Workbook();
+  const sheet = workbook.addWorksheet('Resumen Evaluaciones');
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-    // 3. DEFINIR COLUMNAS EN EL ORDEN SOLICITADO
-    sheet.columns = [
-      { header: 'Operador', key: 'operador', width: 35 },
-      { header: 'Autoevaluación %', key: 'autoevaluacion', width: 18, style: { numFmt: '0.00%' } },
-      { header: 'Estado', key: 'estado', width: 15 },
-      { header: 'Evaluador', key: 'evaluador', width: 35 }, 
-      { header: 'Nota Evaluador %', key: 'nota_evaluador', width: 18, style: { numFmt: '0.00%' } },
-      { header: 'Área', key: 'area', width: 15 },
-      { header: 'Categoría', key: 'categoria', width: 30 },
-      { header: 'Proceso', key: 'proceso', width: 35 },
-      { header: 'Fecha', key: 'fecha', width: 20 },
-    ];
+  // 3. NUEVAS COLUMNAS (ID y Equipo DESPUÉS de Operador)
+  sheet.columns = [
+    { header: 'ID Empleado', key: 'id_empleado', width: 12 },
+    { header: 'Operador', key: 'operador', width: 35 },
+    { header: 'Equipo Autónomo', key: 'equipo_autonomo', width: 20 }, // 👈 NUEVO
+    { header: 'Autoevaluación %', key: 'autoevaluacion', width: 18, style: { numFmt: '0.00%' } },
+    { header: 'Estado', key: 'estado', width: 15 },
+    { header: 'Evaluador', key: 'evaluador', width: 35 }, 
+    { header: 'Nota Evaluador %', key: 'nota_evaluador', width: 18, style: { numFmt: '0.00%' } },
+    { header: 'Área', key: 'area', width: 15 },
+    { header: 'Categoría', key: 'categoria', width: 30 },
+    { header: 'Proceso', key: 'proceso', width: 35 },
+    { header: 'Fecha', key: 'fecha', width: 20 },
+  ];
 
-    sheet.addRows(data);
+  sheet.addRows(data);
 
-    // 4. Estilos de encabezado
-    const header = sheet.getRow(1);
-    header.eachCell(cell => {
-      cell.font = { bold: true, color: { argb: 'FFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      cell.border = this.bordesCompletos();
-    });
+  // 4. Estilos de encabezado (sin cambios)
+  const header = sheet.getRow(1);
+  header.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = this.bordesCompletos();
+  });
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    return { 
-      buffer: Buffer.from(buffer), 
-      filename: `Resumen_Evaluaciones_${new Date().toISOString().slice(0, 10)}.xlsx` 
-    };
-  }
+  const buffer = await workbook.xlsx.writeBuffer();
+  return { 
+    buffer: Buffer.from(buffer), 
+    filename: `Resumen_Evaluaciones_${new Date().toISOString().slice(0, 10)}.xlsx` 
+  };
+}
+
 
   // --- MÉTODOS PRIVADOS PARA EXPORTACIÓN INDIVIDUAL ---
 

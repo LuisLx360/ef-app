@@ -175,71 +175,76 @@ async onModuleInit() {
 
 // TEMPORAL - En db.service.ts
 async getEvaluacionesResumenParaExcel() {
-    const query = sql.raw(`
-      SELECT 
-        e.id_evaluacion,
-        em.empleado AS operador,
-        
-        -- 1. Autoevaluación % (Siempre es el porcentaje original)
-        COALESCE(he_original.porcentaje, 0) AS autoevaluacion_pct,
-        
-        -- 2. Estado
-        e.estado,
-
-        -- 3. Lógica para el Nombre del Evaluador
-        CASE 
-            WHEN e.evaluador = 'Autoevaluación' OR e.evaluador IS NULL THEN 'No ha sido evaluada'
-            ELSE e.evaluador 
-        END AS nombre_evaluador,
-
-        -- 4. Lógica para Nota Evaluador % (Si es Autoevaluación, mostramos 0, sino la última nota)
-        CASE 
-            WHEN e.evaluador = 'Autoevaluación' THEN 0
-            ELSE COALESCE(he_ultimo.porcentaje, 0)
-        END AS supervisor_pct,
-
-        c.area,
-        c.nombre AS categoria,
-        STRING_AGG(DISTINCT p.nombre, ', ') AS proceso,
-        e.fecha_evaluacion
-
-      FROM evaluaciones e
-      LEFT JOIN empleados em ON em.id_empleado = e.id_empleado
-      LEFT JOIN categorias c ON c.id_categoria = e.id_categoria
+  const query = sql.raw(`
+    SELECT 
+      e.id_evaluacion,
+      em.id_empleado,
+      em.equipo_autonomo,
+      em.empleado AS operador,
       
-      -- Porcentaje original (Autoevaluación)
-      LEFT JOIN historial_evaluaciones he_original 
-        ON he_original.id_evaluacion = e.id_evaluacion 
-        AND he_original.es_original = TRUE
+      -- 1. Autoevaluación % (Siempre es el porcentaje original)
+      COALESCE(he_original.porcentaje, '0') AS autoevaluacion_pct,
       
-      -- Último porcentaje
-      LEFT JOIN (
-        SELECT DISTINCT ON (id_evaluacion) *
-        FROM historial_evaluaciones
-        ORDER BY id_evaluacion, fecha_modificacion DESC
-      ) he_ultimo 
-        ON he_ultimo.id_evaluacion = e.id_evaluacion
-      
-      LEFT JOIN respuestas r ON r.id_evaluacion = e.id_evaluacion
-      LEFT JOIN preguntas q ON q.id_pregunta = r.id_pregunta
-      LEFT JOIN procesos p ON p.id_proceso = q.id_proceso
+      -- 2. Estado
+      e.estado,
 
-      GROUP BY 
-        e.id_evaluacion, 
-        em.empleado, 
-        he_original.porcentaje, 
-        he_ultimo.porcentaje, 
-        e.estado, 
-        e.evaluador, 
-        c.nombre, 
-        c.area, 
-        e.fecha_evaluacion
-      ORDER BY e.fecha_evaluacion DESC;
-    `);
+      -- 3. Lógica para el Nombre del Evaluador
+      CASE 
+          WHEN e.evaluador = 'Autoevaluación' OR e.evaluador IS NULL THEN 'No ha sido evaluada'
+          ELSE e.evaluador 
+      END AS nombre_evaluador,
 
-    const result = await this.db.execute(query);
-    return result.rows;
-  }
+      -- 4. Lógica para Nota Evaluador % (Si es Autoevaluación, mostramos 0, sino la última nota)
+      CASE 
+          WHEN e.evaluador = 'Autoevaluación' THEN '0'
+          ELSE COALESCE(he_ultimo.porcentaje, '0')
+      END AS supervisor_pct,
+
+      c.area,
+      c.nombre AS categoria,
+      STRING_AGG(DISTINCT p.nombre, ', ') AS proceso,
+      e.fecha_evaluacion
+
+    FROM evaluaciones e
+    LEFT JOIN empleados em ON em.id_empleado = e.id_empleado
+    LEFT JOIN categorias c ON c.id_categoria = e.id_categoria
+    
+    -- Porcentaje original (Autoevaluación)
+    LEFT JOIN historial_evaluaciones he_original 
+      ON he_original.id_evaluacion = e.id_evaluacion 
+      AND he_original.es_original = TRUE
+    
+    -- Último porcentaje
+    LEFT JOIN (
+      SELECT DISTINCT ON (id_evaluacion) *
+      FROM historial_evaluaciones
+      ORDER BY id_evaluacion, fecha_modificacion DESC
+    ) he_ultimo 
+      ON he_ultimo.id_evaluacion = e.id_evaluacion
+    
+    LEFT JOIN respuestas r ON r.id_evaluacion = e.id_evaluacion
+    LEFT JOIN preguntas q ON q.id_pregunta = r.id_pregunta
+    LEFT JOIN procesos p ON p.id_proceso = q.id_proceso
+
+    GROUP BY 
+      e.id_evaluacion,           -- ✅
+      em.id_empleado,            -- ✅ AGREGADO
+      em.equipo_autonomo,        -- ✅ AGREGADO  
+      em.empleado,               -- ✅
+      he_original.porcentaje,    -- ✅
+      he_ultimo.porcentaje,      -- ✅
+      e.estado,                  -- ✅
+      e.evaluador,               -- ✅
+      c.nombre,                  -- ✅
+      c.area,                    -- ✅
+      e.fecha_evaluacion         -- ✅
+    ORDER BY e.fecha_evaluacion DESC;
+  `);
+
+  const result = await this.db.execute(query);
+  return result.rows;
+}
+
 
 
 
@@ -433,18 +438,34 @@ async getEvaluacionesByJefeNombre(nombreJefe: string) {
   // Evaluaciones (continuación)
   // -----------------------------
   async getEvaluacionesByEmpleado(idEmpleado: string) {
-    return await this.db
-      .select({
-        idEvaluacion: evaluaciones.idEvaluacion,
-        fechaEvaluacion: sql`to_char(${evaluaciones.fechaEvaluacion}, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
-        categoria: categorias.nombre,
-        estado: evaluaciones.estado,
-      })
-      .from(evaluaciones)
-      .leftJoin(categorias, eq(evaluaciones.idCategoria, categorias.id_categoria))
-      .where(eq(evaluaciones.idEmpleado, idEmpleado))
-      .orderBy(evaluaciones.fechaEvaluacion);
+  const rows = await this.db
+    .select({
+      idEvaluacion: evaluaciones.idEvaluacion,
+      fechaEvaluacion: sql`to_char(${evaluaciones.fechaEvaluacion}, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
+      categoria: categorias.nombre,
+      estado: evaluaciones.estado,
+      nombreProceso: procesos.nombre,
+    })
+    .from(evaluaciones)
+    .leftJoin(categorias, eq(evaluaciones.idCategoria, categorias.id_categoria))
+    .leftJoin(respuestas, eq(respuestas.idEvaluacion, evaluaciones.idEvaluacion))
+    .leftJoin(preguntas, eq(preguntas.id_pregunta, respuestas.idPregunta))
+    .leftJoin(procesos, eq(procesos.id_proceso, preguntas.id_proceso))
+    .where(eq(evaluaciones.idEmpleado, idEmpleado))
+    .orderBy(evaluaciones.fechaEvaluacion);
+
+  // 👇 CRÍTICO: deduplicar
+  const evaluacionesUnicas = new Map();
+  for (const row of rows) {
+    if (!evaluacionesUnicas.has(row.idEvaluacion)) {
+      evaluacionesUnicas.set(row.idEvaluacion, row);
+    }
   }
+
+  return Array.from(evaluacionesUnicas.values());
+}
+
+
 
   async getEvaluacionCompleta(idEvaluacion: number) {
     const result = await this.db
@@ -522,25 +543,41 @@ async getEvaluacionesByJefeNombre(nombreJefe: string) {
   }
 
   async getAllEvaluaciones() {
-    return await this.db
-      .select({
-        idEvaluacion: evaluaciones.idEvaluacion,
-        fechaEvaluacion: sql`to_char(${evaluaciones.fechaEvaluacion}, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
-        estado: evaluaciones.estado,
-        observaciones: evaluaciones.observaciones,
-        idEmpleado: empleados.id_empleado,
-        nombreEmpleado: empleados.empleado,
-        areaEmpleado: empleados.area,
-        categoria: categorias.nombre,
-        nivelCategoria: categorias.nivel,
-        areaCategoria: categorias.area,
-        evaluador: evaluaciones.evaluador,
-      })
-      .from(evaluaciones)
-      .leftJoin(empleados, eq(evaluaciones.idEmpleado, empleados.id_empleado))
-      .leftJoin(categorias, eq(evaluaciones.idCategoria, categorias.id_categoria))
-      .orderBy(desc(evaluaciones.fechaEvaluacion));
+  const rows = await this.db
+    .select({
+      idEvaluacion: evaluaciones.idEvaluacion,
+      fechaEvaluacion: sql`to_char(${evaluaciones.fechaEvaluacion}, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
+      estado: evaluaciones.estado,
+      observaciones: evaluaciones.observaciones,
+      idEmpleado: empleados.id_empleado,
+      nombreEmpleado: empleados.empleado,
+      areaEmpleado: empleados.area,
+      categoria: categorias.nombre,
+      nivelCategoria: categorias.nivel,
+      areaCategoria: categorias.area,
+      evaluador: evaluaciones.evaluador,
+      nombreProceso: procesos.nombre,
+    })
+    .from(evaluaciones)
+    .leftJoin(empleados, eq(evaluaciones.idEmpleado, empleados.id_empleado))
+    .leftJoin(categorias, eq(evaluaciones.idCategoria, categorias.id_categoria))
+    .leftJoin(respuestas, eq(respuestas.idEvaluacion, evaluaciones.idEvaluacion))
+    .leftJoin(preguntas, eq(preguntas.id_pregunta, respuestas.idPregunta))
+    .leftJoin(procesos, eq(procesos.id_proceso, preguntas.id_proceso))
+    .orderBy(desc(evaluaciones.fechaEvaluacion));
+
+  // 👇 CRÍTICO: deduplicar por idEvaluacion, quedándose con el primer proceso
+  const evaluacionesUnicas = new Map();
+  for (const row of rows) {
+    if (!evaluacionesUnicas.has(row.idEvaluacion)) {
+      evaluacionesUnicas.set(row.idEvaluacion, row);
+    }
   }
+
+  return Array.from(evaluacionesUnicas.values());
+}
+
+
 
   // -----------------------------
   // Actualización y eliminación
