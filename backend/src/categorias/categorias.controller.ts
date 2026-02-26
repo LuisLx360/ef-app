@@ -22,6 +22,8 @@ export class CategoriasController {
     return this.categoriasService.findAllForEvaluation();
   }
 
+  
+
   @Get(':id/procesos/evaluacion')
   async getProcesosEvaluacion(@Param('id', ParseIntPipe) id: number) {
     return this.categoriasService.findProcesosForEvaluation(id);

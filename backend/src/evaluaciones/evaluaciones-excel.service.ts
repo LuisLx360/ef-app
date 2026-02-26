@@ -30,6 +30,111 @@ export class EvaluacionesExcelService {
   constructor(private readonly dbService: DbService) {}
 
   /**
+   * NUEVA FUNCIÓN: EXPORTACIÓN DE MATRIZ DINÁMICA
+   * Exporta la tabla de la interfaz con preguntas como columnas
+   */
+  async exportarMatriz(idCategoria: number, idProceso: number): Promise<{ buffer: Buffer; filename: string }> {
+    const matriz = await this.dbService.getMatrizEvaluaciones(idCategoria, idProceso);
+    
+    if (!matriz || matriz.preguntas.length === 0) {
+      throw new NotFoundException('No hay datos para esta selección');
+    }
+
+    const workbook = new Workbook();
+    const sheet = workbook.addWorksheet('Matriz de Evaluaciones');
+
+    // 1. Configuración de columnas
+    const columnas = [
+      { header: 'OPERADOR', key: 'nombre', width: 35 },
+      ...matriz.preguntas.map((q, i) => ({
+        header: `Q${i + 1}: ${q.texto}`,
+        key: `q_${q.id}`,
+        width: 25
+      })),
+      { header: '% INICIAL', key: 'resultadoInicial', width: 15, style: { numFmt: '0.00"%"' } },
+      { header: '% FINAL', key: 'resultadoFinal', width: 15, style: { numFmt: '0.00"%"' } }
+    ];
+
+    sheet.columns = columnas;
+    sheet.views = [{ state: 'frozen', xSplit: 1, ySplit: 1 }];
+
+    // 2. Llenado de datos de operadores
+    matriz.operadores.forEach(op => {
+      const fila: any = {
+        nombre: op.nombre,
+        resultadoInicial: op.resultadoInicial,
+        resultadoFinal: op.resultadoFinal
+      };
+      
+      matriz.preguntas.forEach(q => {
+        fila[`q_${q.id}`] = op.respuestas[q.id] ? 'SÍ' : 'NO';
+      });
+      
+      sheet.addRow(fila);
+    });
+
+    // --- NUEVA LÓGICA: FILA DE PROMEDIO GRUPAL ---
+    const totalOperadores = matriz.operadores.length;
+    const filaPromedios = sheet.addRow({}); // Creamos una fila vacía al final
+    
+    filaPromedios.getCell(1).value = 'PROMEDIO GRUPAL';
+    filaPromedios.getCell(1).font = { bold: true };
+
+    matriz.preguntas.forEach((q, index) => {
+      const colNumber = index + 2; // +2 porque la col 1 es el nombre
+      const totalSies = matriz.operadores.filter(op => !!op.respuestas[q.id]).length;
+      const promedio = totalOperadores > 0 ? (totalSies / totalOperadores) : 0;
+      
+      const cell = filaPromedios.getCell(colNumber);
+      cell.value = promedio;
+      cell.numFmt = '0%';
+      cell.alignment = { horizontal: 'center' };
+      
+      // Formato condicional: Rojo < 70%, Verde >= 70%
+      cell.font = { 
+        bold: true, 
+        color: { argb: promedio < 0.7 ? 'FFFF0000' : 'FF00B050' } 
+      };
+      cell.border = this.bordesCompletos();
+    });
+    // --------------------------------------------
+
+    // 3. Estilo de cabecera
+    const headerRow = sheet.getRow(1);
+    headerRow.height = 45;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 9 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2E75B6' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = this.bordesCompletos();
+    });
+
+    // 4. Estilos de celdas de datos (recorremos todas las filas excepto la cabecera)
+    sheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      
+      row.eachCell((cell, colNumber) => {
+        cell.border = this.bordesCompletos();
+        
+        // No centramos la primera columna (nombres)
+        if (colNumber > 1) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        }
+
+        if (cell.value === 'SÍ') cell.font = { color: { argb: '008000' }, bold: true };
+        if (cell.value === 'NO') cell.font = { color: { argb: 'FF0000' } };
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const cleanName = matriz.guiaNombre.replace(/[^a-zA-Z0-9]/g, '_');
+    return { 
+      buffer: Buffer.from(buffer), 
+      filename: `Matriz_${cleanName}_${new Date().toISOString().slice(0, 10)}.xlsx` 
+    };
+  }
+
+  /**
    * EXPORTACIÓN INDIVIDUAL (Formato detallado con celdas combinadas)
    */
   async exportarEvaluacion(idEvaluacion: number): Promise<{ buffer: Buffer; filename: string }> {
@@ -69,7 +174,7 @@ export class EvaluacionesExcelService {
         titulo: r.titulo,
         respuesta: r.respuesta,
         no_aplica: Boolean(r.no_aplica),
-        peso: r.peso ?? 1,
+        peso: r.weight ?? 1, // Nota: Asegúrate que el campo sea peso o weight según tu db.service
         comentarios: r.comentarios ?? undefined,
       })),
     };
@@ -88,8 +193,8 @@ export class EvaluacionesExcelService {
 
   // 2. Mapear datos al formato de tabla (AGREGAR ID y equipo)
   const data = evaluacionesRaw.map((ev: any) => ({
-    id_empleado: ev.id_empleado || '',           // 👈 NUEVO
-    equipo_autonomo: ev.equipo_autonomo || '',   // 👈 NUEVO
+    id_empleado: ev.id_empleado || '',           
+    equipo_autonomo: ev.equipo_autonomo || '',   
     operador: ev.operador || 'Sin Operador',
     autoevaluacion: Number(ev.autoevaluacion_pct || 0) / 100,
     estado: ev.estado?.toUpperCase() || 'PENDIENTE',
@@ -114,7 +219,7 @@ export class EvaluacionesExcelService {
   sheet.columns = [
     { header: 'ID Empleado', key: 'id_empleado', width: 12 },
     { header: 'Operador', key: 'operador', width: 35 },
-    { header: 'Equipo Autónomo', key: 'equipo_autonomo', width: 20 }, // 👈 NUEVO
+    { header: 'Equipo Autónomo', key: 'equipo_autonomo', width: 20 }, 
     { header: 'Autoevaluación %', key: 'autoevaluacion', width: 18, style: { numFmt: '0.00%' } },
     { header: 'Estado', key: 'estado', width: 15 },
     { header: 'Evaluador', key: 'evaluador', width: 35 }, 
@@ -251,13 +356,3 @@ export class EvaluacionesExcelService {
     };
   }
 }
-
-
-
-
-
-
-
-
-
-

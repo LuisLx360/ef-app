@@ -11,7 +11,9 @@ import {
   respuestas, 
   historial_evaluaciones 
 } from './schema.js';
-import { eq, isNull, and, or, desc, sql } from 'drizzle-orm';
+import { eq, isNull, and, or, desc, sql, inArray, exists } from 'drizzle-orm';
+import { MatrizEvaluacionDto } from '../evaluaciones/dto/matriz-evaluacion.dto';
+
 
 @Injectable()
 export class DbService implements OnModuleInit {
@@ -171,6 +173,181 @@ async onModuleInit() {
     };
   });
 }
+
+async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<MatrizEvaluacionDto> {
+  
+
+  // 1️⃣ Preguntas: prioriza proceso, fallback a categoría
+  let preguntasProceso = await this.db
+    .select({
+      id: preguntas.id_pregunta,
+      titulo: preguntas.titulo,
+      orden: preguntas.orden,
+    })
+    .from(preguntas)
+    .where(
+      idProceso > 0 
+        ? eq(preguntas.id_proceso, idProceso)
+        : eq(preguntas.id_categoria, idCategoria)
+    )
+    .orderBy(preguntas.orden);
+
+  
+
+  // 2️⃣ Si no hay preguntas con proceso, prueba solo por categoría
+  if (!preguntasProceso.length && idProceso > 0) {
+    
+    preguntasProceso = await this.db
+      .select({
+        id: preguntas.id_pregunta,
+        titulo: preguntas.titulo,
+        orden: preguntas.orden,
+      })
+      .from(preguntas)
+      .where(eq(preguntas.id_categoria, idCategoria))
+      .orderBy(preguntas.orden);
+  }
+  
+
+  if (!preguntasProceso.length) {
+    
+    return {
+      guiaId: idCategoria,
+      guiaNombre: `Categoría ${idCategoria}`,
+      procesoId: idProceso,
+      procesoNombre: idProceso > 0 ? `Proceso ${idProceso}` : "Categoría completa",
+      preguntas: [],
+      operadores: [],
+    };
+  }
+
+  // 🔥 3️⃣ EVALUACIONES - CON FILTRO EXISTS DETALLADO + LOGS
+  
+  
+  const evaluacionesCategoria = await this.db
+    .select({
+      idEvaluacion: evaluaciones.idEvaluacion,
+      idEmpleado: evaluaciones.idEmpleado,
+      empleado: empleados.empleado,
+      porcentaje_original: evaluaciones.porcentaje_original,
+    })
+    .from(evaluaciones)
+    .leftJoin(empleados, eq(empleados.id_empleado, evaluaciones.idEmpleado))
+    .where(
+      idProceso > 0
+        ? and(
+            eq(evaluaciones.idCategoria, idCategoria),
+            exists(
+              this.db
+                .select()
+                .from(respuestas)
+                .innerJoin(preguntas, eq(preguntas.id_pregunta, respuestas.idPregunta))
+                .where(
+                  and(
+                    eq(respuestas.idEvaluacion, evaluaciones.idEvaluacion),
+                    eq(preguntas.id_proceso, idProceso)
+                  )
+                )
+            )
+          )
+        : eq(evaluaciones.idCategoria, idCategoria)
+    );
+
+
+  
+
+  if (!evaluacionesCategoria.length) {
+    
+    return {
+      guiaId: idCategoria,
+      guiaNombre: `Categoría ${idCategoria}`,
+      procesoId: idProceso,
+      procesoNombre: idProceso > 0 ? `Proceso ${idProceso}` : "Categoría completa",
+      preguntas: preguntasProceso.map(p => ({
+        id: p.id,
+        texto: p.titulo,
+        orden: p.orden,
+      })),
+      operadores: [],
+    };
+  }
+
+  // 4️⃣ RESPUESTAS - Filtradas por evaluaciones Y preguntas específicas
+  const preguntasIds = preguntasProceso.map(p => p.id);
+  const evaluacionIds = evaluacionesCategoria.map(ev => ev.idEvaluacion);
+  
+  
+  
+  const respuestasRaw = await this.db
+    .select({
+      idEvaluacion: respuestas.idEvaluacion,
+      idPregunta: respuestas.idPregunta,
+      respuesta: respuestas.respuesta,
+      no_aplica: respuestas.no_aplica,
+      peso: preguntas.peso,
+    })
+    .from(respuestas)
+    .leftJoin(preguntas, eq(preguntas.id_pregunta, respuestas.idPregunta))
+    .where(
+      and(
+        inArray(respuestas.idEvaluacion, evaluacionIds),
+        inArray(respuestas.idPregunta, preguntasIds)
+      )
+    );
+
+  
+
+  const respuestasMap = new Map<number, any[]>();
+  for (const r of respuestasRaw) {
+    if (!r.idEvaluacion) continue;
+    const arr = respuestasMap.get(r.idEvaluacion) ?? [];
+    arr.push(r);
+    respuestasMap.set(r.idEvaluacion, arr);
+  }
+
+  
+
+  const operadores = evaluacionesCategoria.map(ev => {
+    const respuestasEval = respuestasMap.get(ev.idEvaluacion) ?? [];
+    
+    
+
+    const respuestasObjeto: Record<number, boolean> = {};
+    for (const preg of preguntasProceso) {
+      const r = respuestasEval.find(x => x.idPregunta === preg.id);
+      respuestasObjeto[preg.id] = Boolean(r?.respuesta);
+    }
+
+    const porcentaje_actual = respuestasEval.length
+      ? Number(this.calcularPorcentajeConPesos(respuestasEval))
+      : Number(ev.porcentaje_original ?? 0);
+
+    return {
+      idEvaluacion: ev.idEvaluacion,
+      idEmpleado: ev.idEmpleado,
+      nombre: ev.empleado ?? "Sin nombre",
+      resultadoInicial: Number(ev.porcentaje_original ?? 0),
+      resultadoFinal: porcentaje_actual,
+      respuestas: respuestasObjeto,
+    };
+  });
+
+  
+
+  return {
+    guiaId: idCategoria,
+    guiaNombre: `Categoría ${idCategoria}`,
+    procesoId: idProceso,
+    procesoNombre: idProceso > 0 ? `Proceso ${idProceso}` : "Categoría completa",
+    preguntas: preguntasProceso.map(p => ({
+      id: p.id,
+      texto: p.titulo,
+      orden: p.orden,
+    })),
+    operadores,
+  };
+}
+
 
 
 // TEMPORAL - En db.service.ts

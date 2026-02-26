@@ -108,6 +108,21 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
                   Evaluaciones Admin
                 </button>
               )}
+
+              {showAdminLink && (
+  <button
+    onClick={() => navigate('/tabla-evaluaciones')}
+    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+      isActive('/tabla-evaluaciones')
+        ? 'text-blue-600 bg-blue-50 border border-blue-200 shadow-sm'
+        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+    }`}
+  >
+    Tabla Evaluaciones
+  </button>
+)}
+
+              
             </nav>
           </div>
 
@@ -201,6 +216,17 @@ export default function Header({ isMenuOpen, setIsMenuOpen }: HeaderProps) {
                 Evaluaciones Admin
               </button>
             )}
+
+            {showAdminLink && (
+  <button
+    onClick={() => { navigate('/tabla-evaluaciones'); closeMenu(); }}
+    className={`w-full text-left p-4 rounded-xl transition-all shadow-sm ${
+      isActive('/tabla-evaluaciones') ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-700 hover:bg-gray-100'
+    }`}
+  >
+    Tabla Evaluaciones
+  </button>
+)}
 
             {isAuthenticated && (
               <Button

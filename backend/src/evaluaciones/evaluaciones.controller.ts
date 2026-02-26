@@ -1,6 +1,6 @@
 import { 
   Controller, Get, Post, Patch, Delete, Param, Body, ParseIntPipe,
-  UseGuards, NotFoundException, HttpStatus, HttpCode, Req, Res, UnauthorizedException 
+  UseGuards, NotFoundException, HttpStatus, HttpCode, Req, Res, UnauthorizedException, Query 
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { DbService } from '../db/db.service';
@@ -11,6 +11,8 @@ import { EvaluacionesExcelService } from './evaluaciones-excel.service';
 import { UpdateEstadoDto } from './dto/update-estado.dto';
 import { UpdateRespuestasDto } from './dto/update-respuestas.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { EvaluacionesService } from './evaluaciones.service';
+import { MatrizEvaluacionDto } from './dto/matriz-evaluacion.dto';
 
 @Controller('evaluaciones')
 @UseGuards(JwtAuthGuard)
@@ -18,7 +20,8 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 export class EvaluacionesController {
   constructor(
     private readonly dbService: DbService,
-    private readonly excelService: EvaluacionesExcelService
+    private readonly excelService: EvaluacionesExcelService,
+    private readonly evaluacionesService: EvaluacionesService
   ) {}
 
   // ✅ SUPERVISOR SOLO - Mantiene RolesGuard
@@ -58,6 +61,26 @@ export class EvaluacionesController {
   async getEvaluacionesByEmpleado(@Param('idEmpleado') idEmpleado: string) {
     return await this.dbService.getEvaluacionesByEmpleado(idEmpleado);
   }
+
+  @Get('exportar-matriz')
+async exportarMatriz(
+  @Query('idCategoria') idCat: string,
+  @Query('idProceso') idProc: string,
+  @Res() res: Response
+) {
+  const { buffer, filename } = await this.excelService.exportarMatriz(
+    Number(idCat),
+    Number(idProc)
+  );
+
+  res.set({
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Content-Disposition': `attachment; filename=${filename}`,
+    'Content-Length': buffer.length,
+  });
+
+  res.end(buffer);
+}
 
   // ✅ SUPERVISOR / EVALUADOR - Exportar resumen global (ANTES de :id)
   @Get('exportar-resumen')
@@ -103,6 +126,17 @@ async getEvaluacionesMisEmpleados(@Req() req) {
   }
   
   return await this.dbService.getEvaluacionesByJefeNombre(nombreJefe);
+}
+
+@Get('matriz')
+getMatriz(
+  @Query('idCategoria') idCategoria: string,
+  @Query('idProceso') idProceso: string,
+): Promise<MatrizEvaluacionDto> {
+  return this.evaluacionesService.getMatriz(
+    Number(idCategoria),
+    Number(idProceso),
+  );
 }
 
 

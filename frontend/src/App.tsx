@@ -10,6 +10,7 @@ import EvaluacionMisEmpleados from './pages/EvaluacionesMisEmpleados';
 import Header from './components/Header';
 import DetalleEvaluacion from './pages/EvaluacionDetalle';
 import ProtectedRoute from './components/ProtectedRoute';
+import TablaEvaluaciones from './pages/TablaEvaluaciones';
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false); 
@@ -83,6 +84,17 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+  path="/tabla-evaluaciones"
+  element={
+    <ProtectedRoute allowedRoles={['EVALUADOR']}>
+      <AppLayout>
+        <TablaEvaluaciones />
+      </AppLayout>
+    </ProtectedRoute>
+  }
+/>
 
         <Route
           path="/evaluaciones-admin/detalle/:id"

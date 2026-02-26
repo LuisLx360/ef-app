@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DbService } from '../db/db.service';
 import { CreateEvaluacionDto } from './dto/create-evaluacion.dto';
+import { MatrizEvaluacionDto } from './dto/matriz-evaluacion.dto';
+
 
 @Injectable()
 export class EvaluacionesService {
@@ -10,6 +12,9 @@ export class EvaluacionesService {
   async create(dto: CreateEvaluacionDto) {
     return this.db.createEvaluacionWithRespuestas(dto);
   }
+  async getMatriz(idCategoria: number, idProceso: number): Promise<MatrizEvaluacionDto> {
+  return this.db.getMatrizEvaluaciones(idCategoria, idProceso);
+}
 
   // Historial de un empleado
   async getEvaluacionesByEmpleado(idEmpleado: string) {
