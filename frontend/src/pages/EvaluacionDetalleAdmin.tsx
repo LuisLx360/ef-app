@@ -61,10 +61,16 @@ interface EvaluacionDetalleAdmin {
   estado: string;
 
   porcentajeOriginal: number;
-  porcentajeFinal: number;
+  porcentajeFinal: number | string; // ✅ CAMBIADO: puede ser string "-"
 
   respuestas: RespuestaEditable[];
 }
+
+const getResultadoFinalDisplay = (evaluadorNombre: string, porcentajeFinal: number): string | number => {
+  const esAutoevaluacion = evaluadorNombre.toLowerCase().includes('autoevaluación');
+  return esAutoevaluacion ? '-' : porcentajeFinal;
+};
+
 
 /* =======================
    COMPONENTE
@@ -91,10 +97,8 @@ export default function EvaluacionDetalleAdmin() {
     try {
       setLoading(true);
 
-      // ✅ USO DE apiFetch
       const raw: EvaluacionDetalleRaw = await apiFetch(`/evaluaciones/${id}`);
 
-      // ✅ NORMALIZACIÓN CON noAplica
       const normalized: EvaluacionDetalleAdmin = {
         idEvaluacion: raw.idEvaluacion,
         categoriaNombre: raw.categoria,
@@ -105,12 +109,13 @@ export default function EvaluacionDetalleAdmin() {
         fechaEvaluacion: raw.fechaEvaluacion,
         estado: raw.estado || "pendiente",
         porcentajeOriginal: raw.porcentaje_original,
-        porcentajeFinal: raw.porcentaje_actual,
+        // ✅ LÓGICA AQUÍ: "-" si es autoevaluación
+        porcentajeFinal: getResultadoFinalDisplay(raw.evaluador || "", raw.porcentaje_actual),
         respuestas: raw.respuestas.map((r) => ({
           idPregunta: r.idPregunta,
           idRespuesta: r.idRespuesta,
           respuesta: r.respuesta,
-          noAplica: r.no_aplica || false, // ✅ NUEVO
+          noAplica: r.no_aplica || false,
           titulo: r.titulo,
         })),
       };
@@ -268,6 +273,8 @@ export default function EvaluacionDetalleAdmin() {
     console.error("❌ Error descargando Excel:", err);
     alert(`Error: ${err.message}`);
   }
+
+  
 };
 
 
@@ -349,13 +356,20 @@ export default function EvaluacionDetalleAdmin() {
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-4 mt-4">
-                      <span className="px-4 py-2 rounded-full bg-blue-50 text-blue-700 font-semibold">
-                        👤 Autoevaluación: {evaluation.porcentajeOriginal.toFixed(1)}%
-                      </span>
-                      <span className="px-4 py-2 rounded-full bg-green-50 text-green-700 font-semibold">
-                        🧑‍🏫 Resultado final: {evaluation.porcentajeFinal.toFixed(1)}%
-                      </span>
+                     <div className="flex flex-wrap gap-4 mt-4">
+        <span className="px-4 py-2 rounded-full bg-blue-50 text-blue-700 font-semibold">
+          👤 Autoevaluación: {evaluation.porcentajeOriginal.toFixed(1)}%
+        </span>
+        <span className={`px-4 py-2 rounded-full font-semibold text-lg ${
+          typeof evaluation.porcentajeFinal === 'string' 
+            ? 'bg-gray-100 text-gray-700'  // ✅ Gris para "-"
+            : 'bg-green-50 text-green-700' // Verde para porcentaje
+        }`}>
+          🧑‍🏫 Resultado final: {typeof evaluation.porcentajeFinal === 'string' 
+            ? evaluation.porcentajeFinal  // ✅ Muestra "-"
+            : `${evaluation.porcentajeFinal.toFixed(1)}%`
+          }
+        </span>
                     </div>
                   </div>
 

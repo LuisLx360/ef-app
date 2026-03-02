@@ -138,51 +138,61 @@ export class EvaluacionesExcelService {
    * EXPORTACIÓN INDIVIDUAL (Formato detallado con celdas combinadas)
    */
   async exportarEvaluacion(idEvaluacion: number): Promise<{ buffer: Buffer; filename: string }> {
-    const evaluacionRaw = await this.dbService.getEvaluacionCompleta(idEvaluacion);
-    if (!evaluacionRaw) {
-      throw new NotFoundException('Evaluación no encontrada');
-    }
-
-    const empleado = await this.dbService.getEmpleadoById(evaluacionRaw.idEmpleado!);
-    const nombreEmpleado = empleado?.empleado?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'Sin_Empleado';
-    const fecha = evaluacionRaw.fechaEvaluacion
-      ? new Date(evaluacionRaw.fechaEvaluacion).toISOString().split('T')[0]
-      : '1900-01-01';
-
-    const respuestasConNoAplica = evaluacionRaw.respuestas.map(r => ({
-      ...r,
-      no_aplica: r.no_aplica ?? false
-    }));
-    
-    const total_aplicables = respuestasConNoAplica.filter(r => !r.no_aplica).length;
-    const total_no_aplica = respuestasConNoAplica.filter(r => r.no_aplica).length;
-
-    const data: EvaluacionExcelData = {
-      idEvaluacion: evaluacionRaw.idEvaluacion,
-      nombreEmpleado,
-      nombreEvaluador: evaluacionRaw.evaluador ?? 'Sin evaluador',
-      categoria: evaluacionRaw.categoria ?? 'Sin categoría',
-      proceso: evaluacionRaw.proceso ?? undefined,
-      fechaEvaluacion: fecha,
-      porcentaje_original: `${evaluacionRaw.porcentaje_original}%`,
-      porcentaje_actual: `${evaluacionRaw.porcentaje_actual}%`,
-      total_aplicables,
-      total_no_aplica,
-      area: evaluacionRaw.area || 'packaging',
-      respuestas: evaluacionRaw.respuestas.map((r) => ({
-        idPregunta: r.idPregunta,
-        titulo: r.titulo,
-        respuesta: r.respuesta,
-        no_aplica: Boolean(r.no_aplica),
-        peso: r.weight ?? 1, // Nota: Asegúrate que el campo sea peso o weight según tu db.service
-        comentarios: r.comentarios ?? undefined,
-      })),
-    };
-
-    const buffer = await this.generarExcel(data);
-    const filename = `Evaluacion_${nombreEmpleado}_${data.categoria.replace(/[^a-zA-Z0-9]/g, '_')}_${fecha}.xlsx`;
-    return { buffer, filename };
+  const evaluacionRaw = await this.dbService.getEvaluacionCompleta(idEvaluacion);
+  if (!evaluacionRaw) {
+    throw new NotFoundException('Evaluación no encontrada');
   }
+
+  const empleado = await this.dbService.getEmpleadoById(evaluacionRaw.idEmpleado!);
+  const nombreEmpleado = empleado?.empleado?.replace(/[^a-zA-Z0-9\s]/g, '_') || 'Sin_Empleado';
+  const fecha = evaluacionRaw.fechaEvaluacion
+    ? new Date(evaluacionRaw.fechaEvaluacion).toISOString().split('T')[0]
+    : '1900-01-01';
+
+  const respuestasConNoAplica = evaluacionRaw.respuestas.map(r => ({
+    ...r,
+    no_aplica: r.no_aplica ?? false
+  }));
+  
+  const total_aplicables = respuestasConNoAplica.filter(r => !r.no_aplica).length;
+  const total_no_aplica = respuestasConNoAplica.filter(r => r.no_aplica).length;
+
+  // ✅ LÓGICA CORREGIDA: Verificar SUPERVISOR vs AUTOEVALUACIÓN
+  const nombreEvaluador = evaluacionRaw.evaluador ?? 'Sin evaluador';
+  const esAutoevaluacion = nombreEvaluador.toLowerCase().includes('autoevaluación');
+  const esEvaluadaPorSupervisor = !esAutoevaluacion && evaluacionRaw.porcentaje_actual != null && evaluacionRaw.porcentaje_actual > 0;
+  
+  const porcentaje_actual_display = esEvaluadaPorSupervisor 
+    ? `${evaluacionRaw.porcentaje_actual}%` 
+    : '-';
+
+  const data: EvaluacionExcelData = {
+    idEvaluacion: evaluacionRaw.idEvaluacion,
+    nombreEmpleado,
+    nombreEvaluador,
+    categoria: evaluacionRaw.categoria ?? 'Sin categoría',
+    proceso: evaluacionRaw.proceso ?? undefined,
+    fechaEvaluacion: fecha,
+    porcentaje_original: `${evaluacionRaw.porcentaje_original}%`,
+    porcentaje_actual: porcentaje_actual_display,  // ✅ Ahora SÍ será "-"
+    total_aplicables,
+    total_no_aplica,
+    area: evaluacionRaw.area || 'packaging',
+    respuestas: evaluacionRaw.respuestas.map((r) => ({
+      idPregunta: r.idPregunta,
+      titulo: r.titulo,
+      respuesta: r.respuesta,
+      no_aplica: Boolean(r.no_aplica),
+      peso: r.weight ?? 1,
+      comentarios: r.comentarios ?? undefined,
+    })),
+  };
+
+  const buffer = await this.generarExcel(data);
+  const filename = `Evaluacion_${nombreEmpleado}_${data.categoria.replace(/[^a-zA-Z0-9]/g, '_')}_${fecha}.xlsx`;
+  return { buffer, filename };
+}
+
 
   /**
    * EXPORTACIÓN RESUMEN GENERAL (Formato tabla plana solicitado)

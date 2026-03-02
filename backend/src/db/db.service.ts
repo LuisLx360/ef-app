@@ -28,9 +28,9 @@ async onModuleInit() {
     try {
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL!,
-         ssl: { 
+         /* ssl: { 
           rejectUnauthorized: false  // ← Supabase necesita esto ----- No aplica para local
-        }, 
+        }, */ 
         connectionTimeoutMillis: 30000,  // ↑ Más tiempo para Supabase
         idleTimeoutMillis: 60000,
         max: 5,  // Pool más pequeño
@@ -176,7 +176,6 @@ async onModuleInit() {
 
 async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<MatrizEvaluacionDto> {
   
-
   // 1️⃣ Preguntas: prioriza proceso, fallback a categoría
   let preguntasProceso = await this.db
     .select({
@@ -192,11 +191,8 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
     )
     .orderBy(preguntas.orden);
 
-  
-
   // 2️⃣ Si no hay preguntas con proceso, prueba solo por categoría
   if (!preguntasProceso.length && idProceso > 0) {
-    
     preguntasProceso = await this.db
       .select({
         id: preguntas.id_pregunta,
@@ -207,10 +203,8 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
       .where(eq(preguntas.id_categoria, idCategoria))
       .orderBy(preguntas.orden);
   }
-  
 
   if (!preguntasProceso.length) {
-    
     return {
       guiaId: idCategoria,
       guiaNombre: `Categoría ${idCategoria}`,
@@ -221,18 +215,21 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
     };
   }
 
-  // 🔥 3️⃣ EVALUACIONES - CON FILTRO EXISTS DETALLADO + LOGS
-  
-  
+  // 🔥 3️⃣ EVALUACIONES - ✅ SOLO CAMPOS QUE EXISTEN
   const evaluacionesCategoria = await this.db
     .select({
       idEvaluacion: evaluaciones.idEvaluacion,
       idEmpleado: evaluaciones.idEmpleado,
       empleado: empleados.empleado,
+      evaluador: evaluaciones.evaluador, // ✅ EXISTE
       porcentaje_original: evaluaciones.porcentaje_original,
+      // ✅ QUITADO: porcentaje_actual NO existe en schema
+      categoria: categorias.nombre,
     })
     .from(evaluaciones)
     .leftJoin(empleados, eq(empleados.id_empleado, evaluaciones.idEmpleado))
+    .leftJoin(categorias, eq(categorias.id_categoria, evaluaciones.idCategoria))
+    // ✅ QUITADO: procesos JOIN - id_proceso NO existe en evaluaciones
     .where(
       idProceso > 0
         ? and(
@@ -253,11 +250,7 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
         : eq(evaluaciones.idCategoria, idCategoria)
     );
 
-
-  
-
   if (!evaluacionesCategoria.length) {
-    
     return {
       guiaId: idCategoria,
       guiaNombre: `Categoría ${idCategoria}`,
@@ -276,8 +269,6 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
   const preguntasIds = preguntasProceso.map(p => p.id);
   const evaluacionIds = evaluacionesCategoria.map(ev => ev.idEvaluacion);
   
-  
-  
   const respuestasRaw = await this.db
     .select({
       idEvaluacion: respuestas.idEvaluacion,
@@ -295,8 +286,6 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
       )
     );
 
-  
-
   const respuestasMap = new Map<number, any[]>();
   for (const r of respuestasRaw) {
     if (!r.idEvaluacion) continue;
@@ -305,38 +294,40 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
     respuestasMap.set(r.idEvaluacion, arr);
   }
 
-  
-
+  // 5️⃣ ✅ OPERADORES CON LÓGICA DE AUTOEVALUACIÓN
   const operadores = evaluacionesCategoria.map(ev => {
     const respuestasEval = respuestasMap.get(ev.idEvaluacion) ?? [];
     
-    
-
     const respuestasObjeto: Record<number, boolean> = {};
     for (const preg of preguntasProceso) {
       const r = respuestasEval.find(x => x.idPregunta === preg.id);
       respuestasObjeto[preg.id] = Boolean(r?.respuesta);
     }
 
+    // ✅ LÓGICA: Si es autoevaluación → resultadoFinal = "-"
+    const esAutoevaluacion = ev.evaluador?.toLowerCase().includes('autoevaluación') ?? false;
     const porcentaje_actual = respuestasEval.length
       ? Number(this.calcularPorcentajeConPesos(respuestasEval))
-      : Number(ev.porcentaje_original ?? 0);
+      : 0;
+
+    const resultadoFinal = esAutoevaluacion 
+      ? '-'  // ✅ String para frontend
+      : (porcentaje_actual > 0 ? porcentaje_actual : 0);
 
     return {
       idEvaluacion: ev.idEvaluacion,
       idEmpleado: ev.idEmpleado,
       nombre: ev.empleado ?? "Sin nombre",
+      evaluador: ev.evaluador ?? null, // ✅ Para frontend
       resultadoInicial: Number(ev.porcentaje_original ?? 0),
-      resultadoFinal: porcentaje_actual,
+      resultadoFinal: resultadoFinal, // ✅ Ahora puede ser string "-"
       respuestas: respuestasObjeto,
     };
   });
 
-  
-
   return {
     guiaId: idCategoria,
-    guiaNombre: `Categoría ${idCategoria}`,
+    guiaNombre: evaluacionesCategoria[0]?.categoria ?? `Categoría ${idCategoria}`,
     procesoId: idProceso,
     procesoNombre: idProceso > 0 ? `Proceso ${idProceso}` : "Categoría completa",
     preguntas: preguntasProceso.map(p => ({
@@ -347,6 +338,7 @@ async getMatrizEvaluaciones(idCategoria: number, idProceso: number): Promise<Mat
     operadores,
   };
 }
+
 
 
 
